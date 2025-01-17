@@ -1,0 +1,26 @@
+[package]
+name = "max78000-hal"
+version = "0.2.0"
+authors = ["SIGPwny <hello@sigpwny.com>", "Minh Duong <hello@whitehoodhacker.net>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "A Hardware Abstraction Layer for the MAX7800X microcontroller family"
+repository = "https://github.com/sigpwny/max78000-hal"
+readme = "README.md"
+keywords = ["max78000", "max78002", "max7800x", "embedded-hal", "hal", "arm", "cortex-m"]
+categories = ["embedded", "hardware-support", "no-std", "no-std::no-alloc"]
+
+[package.metadata.docs.rs]
+targets = ["thumbv7em-none-eabi", "thumbv7em-none-eabihf"]
+
+[dependencies]
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.3"
+embedded-hal = "1.0.0"
+embedded-hal-nb = "1.0.0"
+embedded-io = "0.6.1"
+max78000-pac = "0.3.0"
+paste = "1.0.15"
+
+[features]
+rt = ["max78000-pac/critical-section", "max78000-pac/rt"]
