@@ -28,6 +28,21 @@ Documentation for this HAL can be obtained by building the docs with `cargo`:
 cargo doc --open
 ```
 
+Documentation will also eventually be on `docs.rs` once the crate is published.
+
+## Contributing
+We welcome contributions from the community! If you want to contribute to this project, follow the steps below to get started:
+1. Fork the repository to create your own copy.
+2. Make your changes, commit them, then push them to your fork.
+3. Open a [pull request](https://github.com/sigpwny/max78000-hal/pulls).
+4. Maintainers will review your PR and suggest changes if needed.
+5. Get merged!
+
+## Maintainers
+- SIGPwny
+
+We are happy to invite additional maintainers to this repository, especially those who are involved in the eCTF competition! You can contact us at `hello@sigpwny.com` or via [Discord](https://sigpwny.com/discord) to request becoming a maintainer.
+
 ## License
 The contents of this repository are dual-licensed under the *MIT OR Apache 2.0* License. This means you may choose either the MIT license or the Apache-2.0 license when using this code. See [`LICENSE-MIT`](./LICENSE-MIT) or [`LICENSE-APACHE`](./LICENSE-APACHE) for each of these licenses.
 
