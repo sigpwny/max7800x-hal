@@ -355,7 +355,7 @@ macro_rules! gpio {
                 /// ## Example
                 /// ```
                 /// // Initialize a Gcr
-                /// let gcr = Gcr::new(peripherals.gcr, peripherals.lpgcr);
+                /// let mut gcr = Gcr::new(peripherals.gcr, peripherals.lpgcr);
                 /// // Initialize the GPIO0 peripheral
                 /// let gpio0 = hal::gpio::Gpio0::new(p.gpio0, &mut gcr.reg);
                 /// // Split into pins
