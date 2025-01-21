@@ -1,13 +1,13 @@
-# max78000-hal
+# max7800x-hal
 This is a Hardware Abstraction Layer (HAL) for the MAX78000 microcontroller. The HAL is built on top of a Peripheral Access Crate (PAC), [`max78000-pac`](https://github.com/sigpwny/max78000-pac), which provides low-level access to the MAX78000's registers. The HAL provides a higher-level interface to the MAX78000's peripherals, making it easier to write applications.
 
 A Board Support Package (BSP) for the MAX78000FTHR is also being developed alongside this HAL. More details will be released soon.
 
 ## Roadmap
-See the [roadmap](https://github.com/sigpwny/max78000-hal/issues/1) to see current progress and future plans.
+See the [roadmap](https://github.com/sigpwny/max7800x-hal/issues/1) to see current progress and future plans.
 
 > [!NOTE]  
-> This HAL is under active development. As a result, the API is volatile and subject to change. Be sure to refer to the [changelog](https://github.com/sigpwny/max78000-hal/releases) for breaking changes.
+> This HAL is under active development. As a result, the API is volatile and subject to change. Be sure to refer to the [changelog](https://github.com/sigpwny/max7800x-hal/releases) for breaking changes.
 
 ## Getting Started
 Coming Soon™️
@@ -34,7 +34,7 @@ Documentation will also eventually be on `docs.rs` once the crate is published.
 We welcome contributions from the community! If you want to contribute to this project, follow the steps below to get started:
 1. Fork the repository to create your own copy.
 2. Make your changes, commit them, then push them to your fork.
-3. Open a [pull request](https://github.com/sigpwny/max78000-hal/pulls).
+3. Open a [pull request](https://github.com/sigpwny/max7800x-hal/pulls).
 4. Maintainers will review your PR and suggest changes if needed.
 5. Get merged!
 
