@@ -354,6 +354,8 @@ macro_rules! gpio {
                 ///
                 /// ## Example
                 /// ```
+                /// // Initialize a Gcr
+                /// let gcr = Gcr::new(peripherals.gcr, peripherals.lpgcr);
                 /// // Initialize the GPIO0 peripheral
                 /// let gpio0 = hal::gpio::Gpio0::new(p.gpio0, &mut gcr.reg);
                 /// // Split into pins
@@ -367,9 +369,9 @@ macro_rules! gpio {
                 /// // Split into pins
                 /// let pins2 = gpio2.split();
                 /// // Set up pins for LED control/output
-                /// let led_red = gpio2.p2_0.into_input_output();
-                /// let led_green = gpio2.p2_1.into_input_output();
-                /// let led_blue = gpio2.p2_2.into_input_output();
+                /// let led_red = pins2.p2_0.into_input_output();
+                /// let led_green = pins2.p2_1.into_input_output();
+                /// let led_blue = pins2.p2_2.into_input_output();
                 ///
                 /// // Acquired pins can then be passed to other peripherals in
                 /// // the HAL or embedded-hal driver crates.
