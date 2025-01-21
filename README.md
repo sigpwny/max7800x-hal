@@ -1,6 +1,6 @@
 # max7800x-hal
 [![Crates.io Version](https://img.shields.io/crates/v/max7800x-hal)](https://crates.io/crates/max7800x-hal)
-[![docs.rs](https://img.shields.io/docsrs/max78000-hal)](https://docs.rs/max7800x-hal)
+[![docs.rs](https://img.shields.io/docsrs/max7800x-hal)](https://docs.rs/max7800x-hal)
 
 This is an [Embedded HAL] (Hardware Abstraction Layer) for the MAX78000 microcontroller from Analog Devices.
 
