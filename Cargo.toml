@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 description = "A Hardware Abstraction Layer for the MAX7800X microcontroller family"
 repository = "https://github.com/sigpwny/max7800x-hal"
 readme = "README.md"
-keywords = ["max78000", "max78002", "max7800x", "embedded-hal", "hal", "arm", "cortex-m"]
+keywords = ["max78000", "embedded-hal", "arm", "cortex-m"]
 categories = ["embedded", "hardware-support", "no-std", "no-std::no-alloc"]
 
 [package.metadata.docs.rs]
