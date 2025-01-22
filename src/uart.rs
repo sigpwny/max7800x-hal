@@ -407,7 +407,7 @@ where UART: Deref<Target = UartRegisterBlock>
         let clkdiv = clk_src_freq / self.baud;
         self.uart.clkdiv().write(|w| unsafe { w.clkdiv().bits(clkdiv) });
         // Wait until baud clock is ready
-        while !self.uart.ctrl().read().bclkrdy().bit_is_set() {}
+        while self.uart.ctrl().read().bclkrdy().bit_is_clear() {}
         BuiltUartPeripheral {
             uart: self.uart,
             _rx_pin: self._rx_pin,
@@ -427,8 +427,26 @@ where
 {
     #[doc(hidden)]
     #[inline(always)]
+    fn _is_tx_full(&self) -> bool {
+        self.uart.status().read().tx_full().bit_is_set()
+    }
+
+    #[doc(hidden)]
+    #[inline(always)]
+    fn _is_tx_empty(&self) -> bool {
+        self.uart.status().read().tx_em().bit_is_set()
+    }
+
+    #[doc(hidden)]
+    #[inline(always)]
+    fn _is_rx_empty(&self) -> bool {
+        self.uart.status().read().rx_em().bit_is_set()
+    }
+
+    #[doc(hidden)]
+    #[inline(always)]
     fn _read_byte(&self) -> nb::Result<u8, serial::ErrorKind> {
-        if self.uart.status().read().rx_em().bit_is_set() {
+        if self._is_rx_empty() {
             return Err(nb::Error::WouldBlock);
         }
         Ok(self.uart.fifo().read().data().bits())
@@ -437,18 +455,18 @@ where
     #[doc(hidden)]
     #[inline(always)]
     fn _write_byte(&self, byte: u8) -> nb::Result<(), serial::ErrorKind> {
-        if self.uart.status().read().tx_full().bit_is_set() {
+        if self._is_tx_full() {
             return Err(nb::Error::WouldBlock);
         }
         self.uart.fifo().write(|w| unsafe { w.data().bits(byte) });
         Ok(())
     }
 
-    #[doc(hidden)]
+    /// Flush the transmit buffer, ensuring that all bytes have been sent.
+    /// This is a blocking operation.
     #[inline(always)]
-    fn _flush_tx(&self) -> nb::Result<(), serial::ErrorKind> {
-        self.uart.ctrl().modify(|_, w| w.tx_flush().set_bit());
-        Ok(())
+    fn flush_tx(&self) {
+        while !self._is_tx_empty() {}
     }
 
     /// Reads a single byte. This is a blocking operation.
@@ -479,7 +497,7 @@ where
     }
 }
 
-// Embedded HAL traits
+// Embedded HAL non-blocking serial traits
 impl<UART, RX, TX, CTS, RTS> serial::ErrorType for BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
 where
     UART: Deref<Target = UartRegisterBlock>
@@ -505,6 +523,77 @@ where
     }
 
     fn flush(&mut self) -> nb::Result<(), Self::Error> {
-        self._flush_tx()
+        self.flush_tx();
+        Ok(())
+    }
+}
+
+// Embedded IO traits
+impl<UART, RX, TX, CTS, RTS> embedded_io::ErrorType for BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
+where
+    UART: Deref<Target = UartRegisterBlock>
+{
+    type Error = core::convert::Infallible;
+}
+
+impl<UART, RX, TX, CTS, RTS> embedded_io::Read for BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
+where
+    UART: Deref<Target = UartRegisterBlock>
+{
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        let mut count = 0;
+        if buf.len() == 0 {
+            return Ok(0);
+        }
+        // If no bytes are currently available to read, this function blocks
+        // until at least one byte is available.
+        if self._is_rx_empty() {
+            let byte = self.read_byte();
+            buf[count] = byte;
+            count += 1;
+        // If bytes are available, a non-zero amount of bytes is read.
+        } else {
+            while count < buf.len() && !self._is_rx_empty() {
+                let byte = self.read_byte();
+                buf[count] = byte;
+                count += 1;
+            }
+        }
+        Ok(count)
+    }
+}
+
+impl<UART, RX, TX, CTS, RTS> embedded_io::ReadReady for BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
+where
+    UART: Deref<Target = UartRegisterBlock>
+{
+    fn read_ready(&mut self) -> Result<bool, Self::Error> {
+        Ok(!self._is_rx_empty())
+    }
+}
+
+impl<UART, RX, TX, CTS, RTS> embedded_io::Write for BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
+where
+    UART: Deref<Target = UartRegisterBlock>
+{
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        for byte in buf {
+            self.write_byte(*byte);
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> Result<(), Self::Error> {
+        self.flush_tx();
+        Ok(())
+    }
+}
+
+impl<UART, RX, TX, CTS, RTS> embedded_io::WriteReady for BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
+where
+    UART: Deref<Target = UartRegisterBlock>
+{
+    fn write_ready(&mut self) -> Result<bool, Self::Error> {
+        Ok(!self._is_tx_full())
     }
 }
