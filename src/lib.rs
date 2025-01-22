@@ -1,5 +1,6 @@
 //! # Hardware Abstraction Layer for MAX7800x Microcontrollers
 #![no_std]
+#![feature(doc_cfg)]
 
 /// Re-export of the Peripheral Access Crate (PAC) for the MAX78000.
 pub use max78000_pac as pac;

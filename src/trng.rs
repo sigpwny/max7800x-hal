@@ -15,10 +15,7 @@ use rand_core::impls::{fill_bytes_via_next, next_u64_via_u32};
 /// // Create a new TRNG peripheral instance
 /// let trng = Trng::new(p.trng, &mut gcr.reg);
 /// // Generate a random 32-bit number
-/// let random_number = trng.next_u32();
-/// // Fill an array with random bytes
-/// let mut buffer = [0u8; 64];
-/// trng.fill_bytes(&mut buffer);
+/// let random_u32 = trng.gen_u32();
 /// ```
 pub struct Trng {
     trng: crate::pac::Trng,
@@ -47,6 +44,23 @@ impl Trng {
     }
 }
 
+/// Enhanced functionality for the TRNG peripheral using the [`rand`] crate.
+/// This trait implementation can be disabled by removing the `rand` feature
+/// flag since you may want to implement your own [`RngCore`].
+///
+/// Example:
+/// ```
+/// // Create a new TRNG peripheral instance
+/// let trng = Trng::new(p.trng, &mut gcr.reg);
+/// // Generate a random 32-bit number
+/// let random_u32 = trng.next_u32(); // Equivalent to trng.gen_u32()
+/// // Generate a random 64-bit number
+/// let random_u64 = trng.next_u64();
+/// // Fill a buffer with random bytes
+/// let mut buffer = [0u8; 16];
+/// trng.fill_bytes(&mut buffer);
+/// ```
+#[doc(cfg(feature = "rand"))]
 #[cfg(feature = "rand")]
 impl RngCore for Trng {
     #[inline(always)]
@@ -54,12 +68,10 @@ impl RngCore for Trng {
         self.gen_u32()
     }
 
-        
     #[inline(always)]
     fn next_u64(&mut self) -> u64 {
         next_u64_via_u32(self)
     }
-
 
     #[inline(always)]
     fn fill_bytes(&mut self, dest: &mut [u8]) {
