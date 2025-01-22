@@ -138,6 +138,14 @@ pub struct UartPeripheral<STATE: marker::UartState, CLOCK, UART, RX, TX, CTS, RT
     parity: ParityBit,
 }
 
+pub struct BuiltUartPeripheral<UART, RX, TX, CTS, RTS> {
+    uart: UART,
+    _rx_pin: RX,
+    _tx_pin: TX,
+    _cts_pin: CTS,
+    _rts_pin: RTS
+}
+
 // TODO
 // pub struct UartReceiver<UART, RX, CTS> {
 //     _uart: UART,
@@ -365,7 +373,7 @@ where UART: Deref<Target = UartRegisterBlock>
 {
     /// Apply all settings and configure the UART peripheral.
     /// This must be called before the UART peripheral can be used.
-    pub fn build(self) -> UartPeripheral<marker::Built, marker::ClockSet, UART, RX, TX, CTS, RTS> {
+    pub fn build(self) -> BuiltUartPeripheral<UART, RX, TX, CTS, RTS> {
         // Configure the UART peripheral
         let clk_src_freq = self.clk_src_freq.unwrap();
         self.uart.ctrl().write(|w| {
@@ -400,20 +408,12 @@ where UART: Deref<Target = UartRegisterBlock>
         self.uart.clkdiv().write(|w| unsafe { w.clkdiv().bits(clkdiv) });
         // Wait until baud clock is ready
         while !self.uart.ctrl().read().bclkrdy().bit_is_set() {}
-        UartPeripheral {
-            _state: PhantomData,
-            _clock: PhantomData,
+        BuiltUartPeripheral {
             uart: self.uart,
             _rx_pin: self._rx_pin,
             _tx_pin: self._tx_pin,
             _cts_pin: self._cts_pin,
-            _rts_pin: self._rts_pin,
-            clk_src: self.clk_src,
-            clk_src_freq: self.clk_src_freq,
-            baud: self.baud,
-            data_bits: self.data_bits,
-            stop_bits: self.stop_bits,
-            parity: self.parity,
+            _rts_pin: self._rts_pin
         }
     }
 }
@@ -421,7 +421,7 @@ where UART: Deref<Target = UartRegisterBlock>
 /// # UART Methods
 /// These methods are used to interact with the UART peripheral after it has
 /// been built.
-impl<UART, RX, TX, CTS, RTS> UartPeripheral<marker::Built, marker::ClockSet, UART, RX, TX, CTS, RTS>
+impl<UART, RX, TX, CTS, RTS> BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
 where
     UART: Deref<Target = UartRegisterBlock>
 {
@@ -480,14 +480,14 @@ where
 }
 
 // Embedded HAL traits
-impl<UART, RX, TX, CTS, RTS> serial::ErrorType for UartPeripheral<marker::Built, marker::ClockSet, UART, RX, TX, CTS, RTS>
+impl<UART, RX, TX, CTS, RTS> serial::ErrorType for BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
 where
     UART: Deref<Target = UartRegisterBlock>
 {
     type Error = serial::ErrorKind;
 }
 
-impl<UART, RX, TX, CTS, RTS> serial::Read<u8> for UartPeripheral<marker::Built, marker::ClockSet, UART, RX, TX, CTS, RTS>
+impl<UART, RX, TX, CTS, RTS> serial::Read<u8> for BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
 where
     UART: Deref<Target = UartRegisterBlock>
 {
@@ -496,7 +496,7 @@ where
     }
 }
 
-impl<UART, RX, TX, CTS, RTS> serial::Write<u8> for UartPeripheral<marker::Built, marker::ClockSet, UART, RX, TX, CTS, RTS>
+impl<UART, RX, TX, CTS, RTS> serial::Write<u8> for BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
 where
     UART: Deref<Target = UartRegisterBlock>
 {
