@@ -24,7 +24,7 @@ If you want updates for when new releases are made, you can watch this repositor
 ## Getting Started
 If you already have an existing Rust project, you can add this crate by running:
 ```sh
-cargo add --features "rt" max7800x-hal
+cargo add max7800x-hal
 ```
 
 Otherwise, we recommend getting started using this [Crate template for the MAX78000FTHR board](https://github.com/sigpwny/max78000fthr-template). If you are not using the MAX78000FTHR board, you can still use the template as a reference for setting up your own project.
