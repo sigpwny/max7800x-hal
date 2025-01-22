@@ -2,6 +2,11 @@
 //!
 //! The TRNG is a hardware module that generates random numbers using
 //! physical entropy sources.
+use rand::Error;
+#[cfg(feature = "rand")]
+use rand::RngCore;
+#[cfg(feature = "rand")]
+use rand_core::impls::{fill_bytes_via_next, next_u64_via_u32};
 
 /// # True Random Number Generator (TRNG) Peripheral
 ///
@@ -10,10 +15,7 @@
 /// // Create a new TRNG peripheral instance
 /// let trng = Trng::new(p.trng, &mut gcr.reg);
 /// // Generate a random 32-bit number
-/// let random_number = trng.next_u32();
-/// // Fill an array with random bytes
-/// let mut buffer = [0u8; 64];
-/// trng.fill_bytes(&mut buffer);
+/// let random_u32 = trng.gen_u32();
 /// ```
 pub struct Trng {
     trng: crate::pac::Trng,
@@ -36,23 +38,49 @@ impl Trng {
 
     /// Generate a random 32-bit number.
     #[inline(always)]
-    pub fn next_u32(&self) -> u32 {
+    pub fn gen_u32(&self) -> u32 {
         while !self._is_ready() {}
         self.trng.data().read().bits() as u32
     }
+}
 
-    /// Generate a random 8-bit number.
+/// Enhanced functionality for the TRNG peripheral using the [`rand`] crate.
+/// This trait implementation can be disabled by removing the `rand` feature
+/// flag since you may want to implement your own [`RngCore`].
+///
+/// Example:
+/// ```
+/// // Create a new TRNG peripheral instance
+/// let trng = Trng::new(p.trng, &mut gcr.reg);
+/// // Generate a random 32-bit number
+/// let random_u32 = trng.next_u32(); // Equivalent to trng.gen_u32()
+/// // Generate a random 64-bit number
+/// let random_u64 = trng.next_u64();
+/// // Fill a buffer with random bytes
+/// let mut buffer = [0u8; 16];
+/// trng.fill_bytes(&mut buffer);
+/// ```
+#[doc(cfg(feature = "rand"))]
+#[cfg(feature = "rand")]
+impl RngCore for Trng {
     #[inline(always)]
-    pub fn next_u8(&self) -> u8 {
-        self.next_u32() as u8
+    fn next_u32(&mut self) -> u32 {
+        self.gen_u32()
     }
 
-    /// Fill a buffer with random bytes.
     #[inline(always)]
-    pub fn fill_bytes(&self, buffer: &mut [u8]) {
-        for word in buffer.chunks_mut(size_of::<u32>()) {
-            let random = self.next_u32();
-            word.copy_from_slice(&random.to_le_bytes()[..word.len()]);
-        }
+    fn next_u64(&mut self) -> u64 {
+        next_u64_via_u32(self)
+    }
+
+    #[inline(always)]
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        fill_bytes_via_next(self, dest);
+    }
+
+    #[inline(always)]
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Error> {
+        self.fill_bytes(dest);
+        Ok(())
     }
 }
