@@ -17,3 +17,4 @@ pub mod gcr;
 pub mod gpio;
 pub mod trng;
 pub mod uart;
+pub mod aes;
