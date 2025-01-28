@@ -4,9 +4,10 @@ use crate::gcr::ResetForPeripheral;
 pub const AES_KEYS: usize = 0x4000_7800;
 
 #[repr(u8)]
+#[derive(Clone, Copy)]
 pub enum CipherType {
     Encrypt = 0b_00,
-    Decrypt = 0b_01,
+    Decrypt = 0b_10,
 }
 
 pub enum Key<'a> {
@@ -99,14 +100,19 @@ impl AES {
     }
 
     pub fn set_cipher_type(&mut self, cipher_type: CipherType) {
-        self.aes.ctrl().write(|reg| {reg.en().clear_bit()});
-        self.aes.ctrl().write(|reg| unsafe {reg.type_().bits(cipher_type as u8)});
-        self.aes.ctrl().write(|reg| {reg.en().set_bit()});
+        while self._is_busy() {}
+        self.aes.ctrl().write(|reg| reg.en().clear_bit());
+
+        self.aes.ctrl().modify(|read, write| unsafe {
+            let mut data = read.bits();
+            data |= (cipher_type as u32) << 8 | 1;
+            write.bits(data)
+        });
 
     }
 
     // Helper function to process a 16-byte block
-    fn add_block_to_fifo(&mut self, block: &[u8; 16]) {
+    fn write_block_to_fifo(&mut self, block: &[u8; 16]) {
         let words = [
             u32::from_be_bytes(block[12..16].try_into().unwrap()),
             u32::from_be_bytes(block[8..12].try_into().unwrap()),
@@ -121,14 +127,14 @@ impl AES {
     }
 
     // Main function to add data to the FIFO
-    pub fn add_data_to_fifo(&mut self, data: &[u8]) {
+    pub fn write_data_to_fifo(&mut self, data: &[u8]) {
         // Wait until FIFO is ready
         while self._is_busy() {}
 
 
         // Process full 16-byte chunks
         for chunk in data.chunks_exact(16) {
-            self.add_block_to_fifo(chunk.try_into().unwrap());
+            self.write_block_to_fifo(chunk.try_into().unwrap());
         }
 
         // Handle the remainder (less than 16 bytes)
@@ -141,11 +147,11 @@ impl AES {
             let padding_size = 16 - remainder.len();
             padded_block[remainder.len()..].fill(padding_size as u8);
 
-            self.add_block_to_fifo(&padded_block);
+            self.write_block_to_fifo(&padded_block);
         }
     }
 
-    fn fetch_block_from_fifo(&mut self) -> [u8; 16] {
+    fn read_block_from_fifo(&mut self) -> [u8; 16] {
         while self._is_busy() {}
 
         let mut data = [0u8; 16];
@@ -158,20 +164,20 @@ impl AES {
     }
 
     // Main function to fetch data of variable size
-    pub fn fetch_data_from_fifo(&mut self, output: &mut [u8]) {
+    pub fn read_data_from_fifo(&mut self, output: &mut [u8]) {
         while self._is_busy() {}
 
 
         // Fetch full blocks
         for chunk in output.chunks_exact_mut(16) {
-            let block = self.fetch_block_from_fifo();
+            let block = self.read_block_from_fifo();
             chunk.copy_from_slice(&block);
         }
 
         // Handle remainder
         let remainder = output.chunks_exact_mut(16).into_remainder();
         if !remainder.is_empty() {
-            let block = self.fetch_block_from_fifo();
+            let block = self.read_block_from_fifo();
             remainder.copy_from_slice(&block[..remainder.len()]);
         }
 
