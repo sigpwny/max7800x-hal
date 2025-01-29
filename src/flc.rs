@@ -1,50 +1,118 @@
+//! # Flash Controller (FLC)
 use crate::gcr::clocks::{Clock, SystemClock};
 
+/// Base address of the flash memory.
 pub const FLASH_BASE:       u32 = 0x1000_0000;
+/// Size of the flash memory.
 pub const FLASH_SIZE:       u32 = 0x0008_0000;
+/// End address of the flash memory.
 pub const FLASH_END:        u32 = FLASH_BASE + FLASH_SIZE;
+/// Number of flash pages.
+pub const FLASH_PAGE_COUNT: u32 = 64;
+/// Size of a flash page.
 pub const FLASH_PAGE_SIZE:  u32 = 0x2000;
 
-// TODO:
-// - Correctly implement write_128 (can we even use u128)?
-// - Implement write_32
-// - Return Result instead of FlashStatus
-// - Write tests
-// - Document
-
-pub enum FlashStatus {
-    Ok,
+/// Flash controller errors.
+#[derive(Debug, PartialEq)]
+pub enum FlashError {
+    /// The target address to write or erase is invalid.
     InvalidAddress,
+    /// The flash controller was busy or locked when attempting to write or erase.
     AccessViolation,
+    /// Writing over the old data with new data would cause 0 -> 1 bit transitions.
+    /// The target address must be erased before writing new data.
     NeedsErase,
 }
 
+/// # Flash Controller (FLC) Peripheral
+///
+/// The flash controller manages read, write, and erase accesses to the
+/// internal flash and provides the following features:
+/// - Up to 512 KiB of flash memory
+/// - 64 pages (8192 bytes per page)
+/// - 2048 words by 128 bits per page
+/// - 128-bit write granularity
+/// - Page erase and mass erase
+/// - Read and write protection
+///
+/// Example:
+/// ```
+/// let flc = Flc::new(p.flc, sys_clk);
+///
+/// // Erase page number 48
+/// unsafe { flc.erase_page(0x1006_0000).unwrap(); }
+/// // Read the value at address 0x1006_0004
+/// let data: u32 = flc.read_32(0x1006_0004).unwrap();
+/// // Should be 0xFFFFFFFF since flash defaults to all 1's
+/// assert_eq!(data, 0xFFFF_FFFF);
+///
+/// // Write a value to address 0x1006_0004
+/// flc.write_32(0x1006_0004, 0x7856_3412).unwrap();
+/// // Read the data back from flash memory
+/// let new_data: u32 = flc.read_32(0x1006_0004).unwrap();
+/// assert_eq!(new_data, 0x7856_3412);
+/// ```
+///
+/// ## Flash Programming Linkage
+/// Executing from flash memory while writing to flash memory can result
+/// in a crash or undefined behavior. All critical flash programming functions
+/// are marked with the `.flashprog` section and are set to never be inlined.
+/// This allows the user to place these functions either in a "safe" flash page
+/// or in executable RAM. The user can modify their `memory.x` file (or
+/// `link.x`, or a custom linker script) to specify where the `.flashprog`
+/// section is placed. This is recommended if you are experiencing crashes
+/// while writing to flash memory.
+///
+/// The below example will collect all `.flashprog` functions into a new
+/// section, which will be placed in flash memory (`AT>FLASH`) after the `.data`
+/// section (`INSERT AFTER .data;`), then loaded into RAM and executed from RAM
+/// at runtime (`> RAM`).
+///
+/// ```
+/// /* linker script */
+/// SECTIONS {
+///    .flash_code :
+///    {
+///       . = ALIGN(4);
+///       *(.flashprog*)
+///       . = ALIGN(4);
+///    } > RAM AT>FLASH
+/// }
+/// INSERT AFTER .data;
+/// ```
+///
+/// Note that you likely do not need to do this if you are not experiencing
+/// crashes while writing to flash memory.
 pub struct Flc {
     flc: crate::pac::Flc,
+    sys_clk: Clock<SystemClock>,
 }
 
 impl Flc {
-    // #[link_section = ".flashprog"]
-    // #[inline(never)]
-    pub fn new(flc: crate::pac::Flc, sys_clk: &Clock<SystemClock>) -> Self {
-        let s = Self { flc };
-        while s.is_busy() {}
-        // Calculate FLC divisor such that FLC frequency is 1 MHz
-        let flc_div = sys_clk.frequency / 1_000_000;
+    /// Construct a new flash controller peripheral.
+    pub fn new(flc: crate::pac::Flc, sys_clk: Clock<SystemClock>) -> Self {
+        let s = Self { flc, sys_clk };
+        s.config();
+        s
+    }
+
+    /// Configure the flash controller.
+    #[inline]
+    fn config(&self) {
+        // Wait until the flash controller is not busy
+        while self.is_busy() {}
         // Set FLC divisor
-        s.flc.clkdiv().modify(|_, w| unsafe {
+        let flc_div = self.sys_clk.frequency / 1_000_000;
+        self.flc.clkdiv().modify(|_, w| unsafe {
             w.clkdiv().bits(flc_div as u8)
         });
         // Clear stale interrupts
-        if s.flc.intr().read().af().bit_is_set() {
-            s.flc.intr().write(|w| w.af().clear_bit());
+        if self.flc.intr().read().af().bit_is_set() {
+            self.flc.intr().write(|w| w.af().clear_bit());
         }
-        return s;
     }
 
     /// Check if the flash controller is busy.
-    // #[link_section = ".flashprog"]
-    // #[inline(never)]
     #[inline]
     pub fn is_busy(&self) -> bool {
         let ctrl = self.flc.ctrl().read();
@@ -52,6 +120,28 @@ impl Flc {
         ctrl.pge().bit_is_set() ||
         ctrl.me().bit_is_set() ||
         ctrl.wr().bit_is_set()
+    }
+
+    /// Check if an address is within the valid flash memory range.
+    #[inline]
+    pub fn check_address(&self, address: u32) -> Result<(), FlashError> {
+        if address < FLASH_BASE || address >= FLASH_END {
+            return Err(FlashError::InvalidAddress);
+        }
+        Ok(())
+    }
+
+    /// Set the target address for a write or erase operation.
+    #[inline]
+    fn set_address(&self, address: u32) -> Result<(), FlashError> {
+        self.check_address(address)?;
+        // Convert to physical address
+        let phys_addr = address & (FLASH_SIZE - 1);
+        // Safety: We have validated the address already
+        self.flc.addr().write(|w| unsafe {
+            w.addr().bits(phys_addr)
+        });
+        Ok(())
     }
 
     /// Unlock the flash controller to allow write or erase operations.
@@ -68,24 +158,8 @@ impl Flc {
         while self.flc.ctrl().read().unlock().is_unlocked() {}
     }
 
-    /// Set the target address for a write or erase operation.
-    fn set_address(&self, address: u32) -> FlashStatus {
-        // Ensure that the address is within the flash memory range and aligned to a page boundary
-        if address < FLASH_BASE || address >= FLASH_END || address & (FLASH_PAGE_SIZE - 1) != 0 {
-            return FlashStatus::InvalidAddress;
-        }
-        // Convert to physical address
-        let phys_addr = address & (FLASH_SIZE - 1);
-        // Safety: We have validated the address already
-        self.flc.addr().write(|w| unsafe {
-            w.addr().bits(phys_addr)
-        });
-        FlashStatus::Ok
-    }
-
     /// Commit a write operation.
     #[link_section = ".flashprog"]
-    // #[inline(never)]
     #[inline]
     fn commit_write(&self) {
         self.flc.ctrl().modify(|_, w| w.wr().set_bit());
@@ -95,7 +169,6 @@ impl Flc {
 
     /// Commit a page erase operation.
     #[link_section = ".flashprog"]
-    // #[inline(never)]
     #[inline]
     fn commit_erase(&self) {
         self.flc.ctrl().modify(|_, w| w.pge().set_bit());
@@ -103,108 +176,177 @@ impl Flc {
         while self.is_busy() {}
     }
 
-    /// Write a 128-bit word to flash memory.
-    ///
-    /// # Safety
-    /// Writes are only successful if the target address is already erased or
-    /// the bits that change between the existing value at the target address
-    /// and the new value are only 1 -> 0 transitions.
-    ///
-    /// Executing from flash memory while writing to flash memory can result
-    /// in a crash or undefined behavior. The user should ensure that the
-    /// `.flashprog` section is correctly placed in SRAM during the linking
-    /// process, and that code in the `.flashprog` section can execute from
-    /// SRAM.
+    /// Write a 128-bit word to flash memory. This is an internal function to
+    /// be used by all other write functions.
+    #[doc(hidden)]
     #[link_section = ".flashprog"]
     #[inline(never)]
-    pub unsafe fn write_128(&self, address: u32, data: u128) -> FlashStatus {
+    fn _write_128(&self, address: u32, data: &[u32; 4]) -> Result<(), FlashError> {
         // Target address must be 128-bit aligned
         if address & 0b1111 != 0 {
-            return FlashStatus::InvalidAddress;
+            return Err(FlashError::InvalidAddress);
         }
-        // Ensure that the flash controller is not busy
-        while self.is_busy() {}
-        // Unlock the flash controller
+        self.check_address(address)?;
+        // Ensure that the flash controller is configured
+        self.config();
+        // Verify that only 1 -> 0 transitions are being made by reading the existing data at the target address
+        for i in 0..4 {
+            // Safety: We have checked the address already
+            let old_data = unsafe { core::ptr::read_volatile((address + i * 4) as *const u32) };
+            if (old_data & data[i as usize]) != data[i as usize] {
+                return Err(FlashError::NeedsErase);
+            }
+        }
+        self.set_address(address)?;
+        // Safety: Data can be written to all bits of the data registers
+        unsafe {
+            self.flc.data(0).write(|w| w.data().bits(data[0]));
+            self.flc.data(1).write(|w| w.data().bits(data[1]));
+            self.flc.data(2).write(|w| w.data().bits(data[2]));
+            self.flc.data(3).write(|w| w.data().bits(data[3]));
+        }
         self.unlock_flash();
-        // Set the address to write to
-        match self.set_address(address) {
-            FlashStatus::Ok => {},
-            FlashStatus::InvalidAddress => {
-                self.lock_flash();
-                return FlashStatus::InvalidAddress;
-            },
-            _ => {}, // ????
-        }
-        // Set the data to write
-        // self.flc.data().write(|w| unsafe {
-        //     w.data().bits(data)
-        // });
         // Commit the write operation
         self.commit_write();
-        // Lock the flash controller
         self.lock_flash();
         // Check for access violation
         if self.flc.intr().read().af().bit_is_set() {
             self.flc.intr().write(|w| w.af().clear_bit());
-            return FlashStatus::AccessViolation;
+            return Err(FlashError::AccessViolation);
         }
-        FlashStatus::Ok
+        Ok(())
     }
 
+    /// Erases a page in flash memory.
+    #[doc(hidden)]
     #[link_section = ".flashprog"]
     #[inline(never)]
-    pub unsafe fn write_32(&self, address: u32, data: u32) -> FlashStatus {
+    fn _erase_page(&self, address: u32) -> Result<(), FlashError> {
+        while self.is_busy() {}
+        self.set_address(address)?;
+        self.unlock_flash();
+        // Set erase page code
+        self.flc.ctrl().modify(|_, w| w.erase_code().erase_page());
+        // Commit the erase operation
+        self.commit_erase();
+        self.lock_flash();
+        // Check for access violation
+        if self.flc.intr().read().af().bit_is_set() {
+            self.flc.intr().write(|w| w.af().clear_bit());
+            return Err(FlashError::AccessViolation);
+        }
+        Ok(())
+    }
+
+    /// Writes four [`u32`] to flash memory. Uses little-endian byte order.
+    /// The lowest [`u32`] in the array is written to the lowest address in flash.
+    /// The target address must be 128-bit aligned.
+    ///
+    /// Example:
+    /// ```
+    /// let data: [u32; 4] = [0x0403_0201, 0x0807_0605, 0x0C0B_0A09, 0x100F_0E0D];
+    /// flash.write_128(0x1006_0000, &data).unwrap();
+    /// // The bytes in flash will look like:
+    /// // 10060000: 0102 0304 0506 0708 090A 0B0C 0D0E 0F10
+    /// ```
+    pub fn write_128(&self, address: u32, data: &[u32; 4]) -> Result<(), FlashError> {
+        self._write_128(address, &data)
+    }
+
+    /// Write a [`u32`] to flash memory. Uses little-endian byte order.
+    /// The target address must be 32-bit aligned.
+    ///
+    /// Note: Writes to flash memory must be done in 128-bit (16-byte) blocks.
+    /// This function will read the existing 128-bit word containing the target
+    /// address, modify the 32-bit word within the 128-bit word, and write the
+    /// modified 128-bit word back to flash memory.
+    ///
+    /// Example:
+    /// ```
+    /// let data: u32 = 0x7856_3412;
+    /// flash.write_32(0x1006_0004, data).unwrap();
+    /// // The bytes in flash will look like:
+    /// // 10060000: FFFF FFFF 1234 5678 FFFF FFFF FFFF FFFF
+    /// ```
+    pub fn write_32(&self, address: u32, data: u32) -> Result<(), FlashError> {
         // Target address must be 32-bit aligned
         if address & 0b11 != 0 {
-            return FlashStatus::InvalidAddress;
+            return Err(FlashError::InvalidAddress);
         }
-        FlashStatus::InvalidAddress
+        self.check_address(address)?;
+        let addr_128 = address & !0b1111;
+        self.check_address(addr_128)?;
+        let addr_128_ptr = addr_128 as *const u32;
+        // Read existing data at the 128-bit word containing the target address
+        let mut prev_data: [u32; 4] = [0xFFFF_FFFF; 4];
+        // Safety: We have checked the address already
+        unsafe {
+            prev_data[0] = core::ptr::read_volatile(addr_128_ptr);
+            prev_data[1] = core::ptr::read_volatile(addr_128_ptr.offset(1));
+            prev_data[2] = core::ptr::read_volatile(addr_128_ptr.offset(2));
+            prev_data[3] = core::ptr::read_volatile(addr_128_ptr.offset(3));
+        }
+        // Determine index of the 32-bit word within the 128-bit word
+        let data_idx = (address & 0b1100) >> 2;
+        // Modify the 32-bit word within the 128-bit word
+        prev_data[data_idx as usize] = data;
+        // Write the modified 128-bit word to flash memory
+        self._write_128(addr_128, &prev_data)
+    }
+
+    /// Reads four [`u32`] from flash memory. Uses little-endian byte order.
+    /// The lowest [`u32`] in the array is read from the lowest address in flash.
+    /// The target address must be 128-bit aligned.
+    pub fn read_128(&self, address: u32) -> Result<[u32; 4], FlashError> {
+        // Target address must be 128-bit aligned
+        if address & 0b1111 != 0 {
+            return Err(FlashError::InvalidAddress);
+        }
+        self.check_address(address)?;
+        let addr_128_ptr = address as *const u32;
+        // Safety: We have checked the address already
+        unsafe {
+            Ok([
+                core::ptr::read_volatile(addr_128_ptr),
+                core::ptr::read_volatile(addr_128_ptr.offset(1)),
+                core::ptr::read_volatile(addr_128_ptr.offset(2)),
+                core::ptr::read_volatile(addr_128_ptr.offset(3)),
+            ])
+        }
+    }
+
+    /// Reads a [`u32`] from flash memory. Uses little-endian byte order.
+    /// The target address must be 32-bit aligned.
+    pub fn read_32(&self, address: u32) -> Result<u32, FlashError> {
+        // Target address must be 32-bit aligned
+        if address & 0b11 != 0 {
+            return Err(FlashError::InvalidAddress);
+        }
+        self.check_address(address)?;
+        let addr_32_ptr = address as *const u32;
+        // Safety: We have checked the address already
+        unsafe {
+            Ok(core::ptr::read_volatile(addr_32_ptr))
+        }
     }
 
     /// Erases a page in flash memory.
     ///
     /// # Safety
     /// Care must be taken to not erase the page containing the executing code.
-    #[link_section = ".flashprog"]
-    #[inline(never)]
-    pub unsafe fn erase_page(&self, address: u32) -> FlashStatus {
-        // Ensure that the flash controller is not busy
-        while self.is_busy() {}
-        // Unlock the flash controller
-        self.unlock_flash();
-        // Set the address to erase
-        match self.set_address(address) {
-            FlashStatus::Ok => {},
-            FlashStatus::InvalidAddress => {
-                self.lock_flash();
-                return FlashStatus::InvalidAddress;
-            },
-            _ => {}, // ????
-        }
-        // Set erase page code
-        self.flc.ctrl().modify(|_, w| w.erase_code().erase_page());
-        // Commit the erase operation
-        self.commit_erase();
-        // Lock the flash controller
-        self.lock_flash();
-        // Check for access violation
-        if self.flc.intr().read().af().bit_is_set() {
-            self.flc.intr().write(|w| w.af().clear_bit());
-            return FlashStatus::AccessViolation;
-        }
-        FlashStatus::Ok
+    pub unsafe fn erase_page(&self, address: u32) -> Result<(), FlashError> {
+        self._erase_page(address)
     }
 
     /// Protects a page in flash memory from write or erase operations.
     /// Effective until the next external or power-on reset.
-    pub fn disable_page_write(&self, address: u32) -> FlashStatus {
-        // Ensure that the flash controller is not busy
+    pub fn disable_page_write(&self, address: u32) -> Result<(), FlashError> {
         while self.is_busy() {}
         // Convert to page number
-        let page_num_bit = (address >> 13) & 63;
+        let page_num_bit = (address >> 13) & (FLASH_PAGE_COUNT - 1);
         // Check for invalid page number
-        if page_num_bit >= 64 {
-            return FlashStatus::InvalidAddress;
+        if page_num_bit >= FLASH_PAGE_COUNT {
+            return Err(FlashError::InvalidAddress);
         }
         // Lock based on page number
         if page_num_bit < 32 {
@@ -220,19 +362,18 @@ impl Flc {
             });
             while self.flc.welr1().read().bits() & write_lock_bit == write_lock_bit {}
         }
-        FlashStatus::Ok
+        Ok(())
     }
 
     /// Protects a page in flash memory from read operations.
     /// Effective until the next external or power-on reset.
-    pub fn disable_page_read(&self, address: u32) -> FlashStatus {
-        // Ensure that the flash controller is not busy
+    pub fn disable_page_read(&self, address: u32) -> Result<(), FlashError> {
         while self.is_busy() {}
         // Convert to page number
-        let page_num_bit = (address >> 13) & 63;
+        let page_num_bit = (address >> 13) & (FLASH_PAGE_COUNT - 1);
         // Check for invalid page number
-        if page_num_bit >= 64 {
-            return FlashStatus::InvalidAddress;
+        if page_num_bit >= FLASH_PAGE_COUNT {
+            return Err(FlashError::InvalidAddress);
         }
         // Lock based on page number
         if page_num_bit < 32 {
@@ -248,6 +389,6 @@ impl Flc {
             });
             while self.flc.rlr1().read().bits() & read_lock_bit == read_lock_bit {}
         }
-        FlashStatus::Ok
+        Ok(())
     }
 }

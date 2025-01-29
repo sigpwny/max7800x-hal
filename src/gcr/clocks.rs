@@ -146,10 +146,17 @@ pub struct Oscillator<O: OscillatorSource, S: OscillatorState> {
 }
 
 /// Clocks are used to drive peripherals after the system clock is configured.
+/// At this point, they can be safely cloned and copied.
 pub struct Clock<SRC: ClockOption> {
     _src: PhantomData<SRC>,
     pub frequency: u32,
 }
+impl<SRC> Clone for Clock<SRC> where SRC: ClockOption {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl<SRC> Copy for Clock<SRC> where SRC: ClockOption {}
 
 /// An OscillatorGuard protects the initialization of an [`Oscillator`],
 /// ensuring that each oscillator source is only initialized once.
