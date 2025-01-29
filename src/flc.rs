@@ -100,6 +100,18 @@ impl Flc {
         Ok(())
     }
 
+    /// Get the page number of a flash address.
+    #[inline]
+    pub fn get_page_number(&self, address: u32) -> Result<u32, FlashError> {
+        self.check_address(address)?;
+        let page_num = (address >> 13) & (FLASH_PAGE_COUNT - 1);
+        // Check for invalid page number (redundant check)
+        if page_num >= FLASH_PAGE_COUNT {
+            return Err(FlashError::InvalidAddress);
+        }
+        Ok(page_num)
+    }
+
     /// Set the target address for a write or erase operation.
     #[inline]
     fn set_address(&self, address: u32) -> Result<(), FlashError> {
@@ -311,21 +323,16 @@ impl Flc {
     /// Effective until the next external or power-on reset.
     pub fn disable_page_write(&self, address: u32) -> Result<(), FlashError> {
         while self.is_busy() {}
-        // Convert to page number
-        let page_num_bit = (address >> 13) & (FLASH_PAGE_COUNT - 1);
-        // Check for invalid page number
-        if page_num_bit >= FLASH_PAGE_COUNT {
-            return Err(FlashError::InvalidAddress);
-        }
+        let page_num = self.get_page_number(address)?;
         // Lock based on page number
-        if page_num_bit < 32 {
-            let write_lock_bit = 1 << page_num_bit;
+        if page_num < 32 {
+            let write_lock_bit = 1 << page_num;
             self.flc.welr0().write(|w| unsafe {
                 w.bits(write_lock_bit)
             });
             while self.flc.welr0().read().bits() & write_lock_bit == write_lock_bit {}
         } else {
-            let write_lock_bit = 1 << (page_num_bit - 32);
+            let write_lock_bit = 1 << (page_num - 32);
             self.flc.welr1().write(|w| unsafe {
                 w.bits(write_lock_bit)
             });
@@ -338,21 +345,16 @@ impl Flc {
     /// Effective until the next external or power-on reset.
     pub fn disable_page_read(&self, address: u32) -> Result<(), FlashError> {
         while self.is_busy() {}
-        // Convert to page number
-        let page_num_bit = (address >> 13) & (FLASH_PAGE_COUNT - 1);
-        // Check for invalid page number
-        if page_num_bit >= FLASH_PAGE_COUNT {
-            return Err(FlashError::InvalidAddress);
-        }
+        let page_num = self.get_page_number(address)?;
         // Lock based on page number
-        if page_num_bit < 32 {
-            let read_lock_bit = 1 << page_num_bit;
+        if page_num < 32 {
+            let read_lock_bit = 1 << page_num;
             self.flc.rlr0().write(|w| unsafe {
                 w.bits(read_lock_bit)
             });
             while self.flc.rlr0().read().bits() & read_lock_bit == read_lock_bit {}
         } else {
-            let read_lock_bit = 1 << (page_num_bit - 32);
+            let read_lock_bit = 1 << (page_num - 32);
             self.flc.rlr1().write(|w| unsafe {
                 w.bits(read_lock_bit)
             });
