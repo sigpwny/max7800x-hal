@@ -96,7 +96,7 @@ pub mod marker {
 
 /// # Universal Asynchronous Receiver/Transmitter (UART) Peripheral
 ///
-/// This struct makes use of [type states](https://docs.rust-embedded.org/book/static-guarantees/typestate-programming.html)
+/// This struct makes use of [typestates](https://docs.rust-embedded.org/book/static-guarantees/typestate-programming.html)
 /// to ensure any UART peripheral cannot be configured with an invalid set
 /// of pins or clocks.
 ///
