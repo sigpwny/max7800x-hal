@@ -52,37 +52,6 @@ pub enum FlashError {
 /// let new_data: u32 = flc.read_32(0x1006_0004).unwrap();
 /// assert_eq!(new_data, 0x7856_3412);
 /// ```
-///
-/// ## Flash Programming Linkage
-/// Executing from flash memory while writing to flash memory can result
-/// in a crash or undefined behavior. All critical flash programming functions
-/// are marked with the `.flashprog` section and are set to never be inlined.
-/// This allows the user to place these functions either in a "safe" flash page
-/// or in executable RAM. The user can modify their `memory.x` file (or
-/// `link.x`, or a custom linker script) to specify where the `.flashprog`
-/// section is placed. This is recommended if you are experiencing crashes
-/// while writing to flash memory.
-///
-/// The below example will collect all `.flashprog` functions into a new
-/// section, which will be placed in flash memory (`AT>FLASH`) after the `.data`
-/// section (`INSERT AFTER .data;`), then loaded into RAM and executed from RAM
-/// at runtime (`> RAM`).
-///
-/// ```
-/// /* linker script */
-/// SECTIONS {
-///    .flash_code :
-///    {
-///       . = ALIGN(4);
-///       *(.flashprog*)
-///       . = ALIGN(4);
-///    } > RAM AT>FLASH
-/// }
-/// INSERT AFTER .data;
-/// ```
-///
-/// Note that you likely do not need to do this if you are not experiencing
-/// crashes while writing to flash memory.
 pub struct Flc {
     flc: crate::pac::Flc,
     sys_clk: Clock<SystemClock>,
@@ -159,27 +128,27 @@ impl Flc {
     }
 
     /// Commit a write operation.
-    #[link_section = ".flashprog"]
+    #[cfg_attr(feature = "flashprog-linkage", link_section = ".flashprog")]
     #[inline]
     fn commit_write(&self) {
-        self.flc.ctrl().modify(|_, w| w.wr().set_bit());
-        while self.flc.ctrl().read().wr().bit_is_set() {}
+        self.flc.ctrl().modify(|_, w| w.wr().start());
+        while !self.flc.ctrl().read().wr().is_complete() {}
         while self.is_busy() {}
     }
 
     /// Commit a page erase operation.
-    #[link_section = ".flashprog"]
+    #[cfg_attr(feature = "flashprog-linkage", link_section = ".flashprog")]
     #[inline]
     fn commit_erase(&self) {
-        self.flc.ctrl().modify(|_, w| w.pge().set_bit());
-        while self.flc.ctrl().read().pge().bit_is_set() {}
+        self.flc.ctrl().modify(|_, w| w.pge().start());
+        while !self.flc.ctrl().read().pge().is_complete() {}
         while self.is_busy() {}
     }
 
     /// Write a 128-bit word to flash memory. This is an internal function to
     /// be used by all other write functions.
     #[doc(hidden)]
-    #[link_section = ".flashprog"]
+    #[cfg_attr(feature = "flashprog-linkage", link_section = ".flashprog")]
     #[inline(never)]
     fn _write_128(&self, address: u32, data: &[u32; 4]) -> Result<(), FlashError> {
         // Target address must be 128-bit aligned
@@ -219,7 +188,7 @@ impl Flc {
 
     /// Erases a page in flash memory.
     #[doc(hidden)]
-    #[link_section = ".flashprog"]
+    #[cfg_attr(feature = "flashprog-linkage", link_section = ".flashprog")]
     #[inline(never)]
     fn _erase_page(&self, address: u32) -> Result<(), FlashError> {
         while self.is_busy() {}
