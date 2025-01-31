@@ -1,5 +1,11 @@
-use max78000_pac::aes::ctrl::KeySize;
 use crate::gcr::ResetForPeripheral;
+use cipher::consts::{U16, U32};
+use cipher::{
+    Block, BlockCipherDecBackend, BlockCipherDecClosure, BlockCipherDecrypt, BlockCipherEncBackend,
+    BlockCipherEncClosure, BlockCipherEncrypt, BlockSizeUser, InOut, KeyInit, KeySizeUser,
+    ParBlocksSizeUser,
+};
+use max78000_pac::aes::ctrl::KeySize;
 
 /// Address of the AES key registers in memory.
 pub const AES_KEYS: usize = 0x4000_7800;
@@ -94,7 +100,9 @@ impl AES {
         }
 
         // Configure the key size.
-        self.aes.ctrl().write(|reg| reg.key_size().variant(key.into()));
+        self.aes
+            .ctrl()
+            .write(|reg| reg.key_size().variant(key.into()));
 
         // Write the key into the AES key registers.
         unsafe {
@@ -128,7 +136,7 @@ impl AES {
     ///
     /// # Warning:
     /// This function assumes the block size is exactly 16 bytes.
-    fn write_block_to_fifo(&mut self, block: &[u8; 16]) {
+    fn write_block_to_fifo(&self, block: &[u8; 16]) {
         let words = [
             u32::from_be_bytes(block[12..16].try_into().unwrap()),
             u32::from_be_bytes(block[8..12].try_into().unwrap()),
@@ -141,24 +149,8 @@ impl AES {
         }
     }
 
-    /// Writes data to the AES hardware input FIFO in 16-byte chunks.
-    ///
-    /// # Warning:
-    /// Any remainder bytes (less than 16) at the end of the input will be ignored.
-    pub fn write_data_to_fifo(&mut self, data: &[u8]) {
-        // Wait until the FIFO is ready.
-        while self._is_busy() {}
-
-        // Process full 16-byte chunks.
-        for chunk in data.chunks_exact(16) {
-            self.write_block_to_fifo(chunk.try_into().unwrap());
-        }
-
-        // Warning: Any data not divisible by 16 bytes is ignored here.
-    }
-
     /// Reads a single 16-byte block from the output FIFO.
-    fn read_block_from_fifo(&mut self) -> [u8; 16] {
+    fn read_block_from_fifo(&self) -> [u8; 16] {
         while self._is_busy() {}
 
         let mut data = [0u8; 16];
@@ -169,20 +161,55 @@ impl AES {
         }
         data
     }
+}
 
-    /// Reads multiple 16-byte blocks from the AES output FIFO into the provided buffer.
-    ///
-    /// # Warning:
-    /// This function assumes the output buffer is a multiple of 16 bytes.
-    pub fn read_data_from_fifo(&mut self, output: &mut [u8]) {
-        while self._is_busy() {}
+impl ParBlocksSizeUser for AES {
+    type ParBlocksSize = U16;
+}
 
-        // Process full 16-byte chunks.
-        for chunk in output.chunks_exact_mut(16) {
-            let block = self.read_block_from_fifo();
-            chunk.copy_from_slice(&block);
-        }
+impl BlockCipherEncBackend for AES {
+    fn encrypt_block(&self, mut block: InOut<'_, '_, Block<Self>>) {
+        // If AES is an in-place transform, read from `get()`
+        let mut data = [0u8; 16];
 
-        // Warning: If the output buffer size is not a multiple of 16 bytes, the extra space will remain unchanged.
+        let input_block = block.get_in();
+        data.copy_from_slice(input_block);
+        self.write_block_to_fifo(&data);
+
+        // Then modify the same buffer with `get_mut()`
+        let output_block = block.get_out();
+        output_block.copy_from_slice(&self.read_block_from_fifo());
+    }
+}
+
+impl BlockCipherDecBackend for AES {
+    fn decrypt_block(&self, mut block: InOut<'_, '_, Block<Self>>) {
+        // If AES is an in-place transform, read from `get()`
+        let mut data = [0u8; 16];
+
+        let input_block = block.get_in();
+        data.copy_from_slice(input_block);
+        self.write_block_to_fifo(&data);
+
+        // Then modify the same buffer with `get_mut()`
+        let output_block = block.get_out();
+        output_block.copy_from_slice(&self.read_block_from_fifo());
+    }
+}
+
+impl BlockSizeUser for AES {
+    type BlockSize = U16; // AES block size is 16 bytes (128 bits)
+}
+
+impl BlockCipherEncrypt for AES {
+    fn encrypt_with_backend(&self, f: impl BlockCipherEncClosure<BlockSize = Self::BlockSize>) {
+        // Make sure the closure parameter type matches what BlockCipherEncClosure expects:
+        f.call(self);
+    }
+}
+
+impl BlockCipherDecrypt for AES {
+    fn decrypt_with_backend(&self, f: impl BlockCipherDecClosure<BlockSize = Self::BlockSize>) {
+        f.call(self)
     }
 }
