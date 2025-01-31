@@ -150,7 +150,10 @@ pub struct Clock<SRC: ClockOption> {
     _src: PhantomData<SRC>,
     pub frequency: u32,
 }
-impl<SRC> Clone for Clock<SRC> where SRC: ClockOption {
+impl<SRC> Clone for Clock<SRC>
+where
+    SRC: ClockOption,
+{
     fn clone(&self) -> Self {
         *self
     }
