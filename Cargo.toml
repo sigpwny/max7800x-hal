@@ -1,6 +1,6 @@
 [package]
 name = "max7800x-hal"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["SIGPwny <hello@sigpwny.com>", "Minh Duong <hello@whitehoodhacker.net>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -27,5 +27,7 @@ cipher = "0.5.0-pre.7"
 
 [features]
 default = ["rand", "rt"]
+# Enabling this adds the `.flashprog` section header to critical flash programming functions for custom linkage
+flashprog-linkage = []
 rand = ["dep:rand", "dep:rand_core"]
 rt = ["max78000-pac/critical-section", "max78000-pac/rt"]
