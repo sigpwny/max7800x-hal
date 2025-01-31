@@ -1,8 +1,9 @@
+use crate::aes::CipherType::{Decrypt, Encrypt};
 use crate::gcr::ResetForPeripheral;
-use cipher::consts::{U16, U32};
+use cipher::consts::{U16, U24, U32};
 use cipher::{
     Block, BlockCipherDecBackend, BlockCipherDecClosure, BlockCipherDecrypt, BlockCipherEncBackend,
-    BlockCipherEncClosure, BlockCipherEncrypt, BlockSizeUser, InOut, KeyInit, KeySizeUser,
+    BlockCipherEncClosure, BlockCipherEncrypt, BlockSizeUser, InOut, KeySizeUser,
     ParBlocksSizeUser,
 };
 use max78000_pac::aes::ctrl::KeySize;
@@ -12,7 +13,7 @@ pub const AES_KEYS: usize = 0x4000_7800;
 
 /// Enum representing the type of cipher operation.
 #[repr(u8)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub enum CipherType {
     Encrypt = 0b_00, // Encryption mode
     Decrypt = 0b_10, // Decryption mode
@@ -57,13 +58,86 @@ impl Into<KeySize> for &Key<'_> {
 }
 
 /// AES struct for handling encryption and decryption using the AES hardware module.
-pub struct AES {
+pub struct AES<const KEY_SIZE: usize> {
     aes: crate::pac::Aes,
 }
 
-impl AES {
+/// AES-128 Implementation
+pub type Aes128Hardware = AES<16>;
+
+impl Aes128Hardware {
+    /// Creates a new AES-128 instance **with a key** (to ensure correct setup)
+    pub fn new_with_key(
+        aes: crate::pac::Aes,
+        reg: &mut crate::gcr::GcrRegisters,
+        key: cipher::Key<Self>, // `Key<Self>` is a `GenericArray<u8, U16>`
+    ) -> Self {
+        let mut instance = Self::new(aes, reg);
+
+        // Convert `GenericArray<u8, U16>` to `[u8; 16]`
+        let key_bytes: [u8; 16] = key.into();
+
+        // Pass the key as `Key::Bits128`
+        instance.set_key(&Key::Bits128(&key_bytes));
+
+        instance
+    }
+}
+impl KeySizeUser for Aes128Hardware {
+    type KeySize = U16;
+}
+
+/// AES-192 Implementation
+pub type Aes192Hardware = AES<24>;
+impl Aes192Hardware {
+    /// Creates a new AES-192 instance **with a key** (to ensure correct setup)
+    pub fn new_with_key(
+        aes: crate::pac::Aes,
+        reg: &mut crate::gcr::GcrRegisters,
+        key: cipher::Key<Self>, // `GenericArray<u8, U24>`
+    ) -> Self {
+        let mut instance = Self::new(aes, reg);
+
+        // Convert `GenericArray<u8, U24>` to `[u8; 24]`
+        let key_bytes: [u8; 24] = key.into();
+
+        // Pass the key as `Key::Bits192`
+        instance.set_key(&Key::Bits192(&key_bytes));
+
+        instance
+    }
+}
+impl KeySizeUser for Aes192Hardware {
+    type KeySize = U24;
+}
+
+/// AES-256 Implementation
+pub type Aes256Hardware = AES<32>;
+impl Aes256Hardware {
+    /// Creates a new AES-256 instance **with a key** (to ensure correct setup)
+    pub fn new_with_key(
+        aes: crate::pac::Aes,
+        reg: &mut crate::gcr::GcrRegisters,
+        key: cipher::Key<Self>, // `GenericArray<u8, U32>`
+    ) -> Self {
+        let mut instance = Self::new(aes, reg);
+
+        // Convert `GenericArray<u8, U32>` to `[u8; 32]`
+        let key_bytes: [u8; 32] = key.into();
+
+        // Pass the key as `Key::Bits256`
+        instance.set_key(&Key::Bits256(&key_bytes));
+
+        instance
+    }
+}
+impl KeySizeUser for Aes256Hardware {
+    type KeySize = U32;
+}
+
+impl<const KEY_SIZE: usize> AES<KEY_SIZE> {
     /// Creates a new AES instance and initializes the hardware module.
-    pub fn new(aes: crate::pac::Aes, reg: &mut crate::gcr::GcrRegisters) -> AES {
+    pub fn new(aes: crate::pac::Aes, reg: &mut crate::gcr::GcrRegisters) -> Self {
         use crate::gcr::ClockForPeripheral;
 
         // Reset and enable the AES hardware module.
@@ -84,7 +158,7 @@ impl AES {
     }
 
     /// Configures the AES hardware with the provided key.
-    pub fn set_key(&mut self, key: &Key) {
+    fn set_key(&mut self, key: &Key) {
         // Wait until the AES module is not busy.
         while self._is_busy() {}
 
@@ -117,7 +191,11 @@ impl AES {
     }
 
     /// Configures the AES hardware for encryption or decryption.
-    pub fn set_cipher_type(&mut self, cipher_type: CipherType) {
+    fn set_cipher_type(&self, cipher_type: CipherType) {
+        if self.aes.ctrl().read().type_() == cipher_type as u8 {
+            return;
+        }
+
         // Wait until the AES module is not busy.
         while self._is_busy() {}
 
@@ -163,15 +241,21 @@ impl AES {
     }
 }
 
-impl ParBlocksSizeUser for AES {
+impl<const KEY_SIZE: usize> ParBlocksSizeUser for AES<KEY_SIZE> {
     type ParBlocksSize = U16;
 }
 
-impl BlockCipherEncBackend for AES {
+impl<const KEY_SIZE: usize> BlockSizeUser for AES<KEY_SIZE> {
+    type BlockSize = U16; // AES block size is 16 bytes (128 bits)
+}
+
+impl<const KEY_SIZE: usize> BlockCipherEncBackend for AES<KEY_SIZE> {
     fn encrypt_block(&self, mut block: InOut<'_, '_, Block<Self>>) {
         // If AES is an in-place transform, read from `get()`
         let mut data = [0u8; 16];
 
+        self.set_cipher_type(Encrypt);
+
         let input_block = block.get_in();
         data.copy_from_slice(input_block);
         self.write_block_to_fifo(&data);
@@ -182,33 +266,30 @@ impl BlockCipherEncBackend for AES {
     }
 }
 
-impl BlockCipherDecBackend for AES {
+impl<const KEY_SIZE: usize> BlockCipherDecBackend for AES<KEY_SIZE> {
     fn decrypt_block(&self, mut block: InOut<'_, '_, Block<Self>>) {
         // If AES is an in-place transform, read from `get()`
         let mut data = [0u8; 16];
 
+        self.set_cipher_type(Decrypt);
+
         let input_block = block.get_in();
         data.copy_from_slice(input_block);
         self.write_block_to_fifo(&data);
 
         // Then modify the same buffer with `get_mut()`
         let output_block = block.get_out();
-        output_block.copy_from_slice(&self.read_block_from_fifo());
+        output_block.copy_from_slice(&data);
     }
 }
 
-impl BlockSizeUser for AES {
-    type BlockSize = U16; // AES block size is 16 bytes (128 bits)
-}
-
-impl BlockCipherEncrypt for AES {
+impl<const KEY_SIZE: usize> BlockCipherEncrypt for AES<KEY_SIZE> {
     fn encrypt_with_backend(&self, f: impl BlockCipherEncClosure<BlockSize = Self::BlockSize>) {
-        // Make sure the closure parameter type matches what BlockCipherEncClosure expects:
         f.call(self);
     }
 }
 
-impl BlockCipherDecrypt for AES {
+impl<const KEY_SIZE: usize> BlockCipherDecrypt for AES<KEY_SIZE> {
     fn decrypt_with_backend(&self, f: impl BlockCipherDecClosure<BlockSize = Self::BlockSize>) {
         f.call(self)
     }
