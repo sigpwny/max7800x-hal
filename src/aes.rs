@@ -44,6 +44,16 @@ impl<'a> Key<'a> {
             Key::Bits256(key) => key.as_ptr(),
         }
     }
+
+    /// Creates a `Key` variant based on the input byte slice length.
+    pub fn from_bytes(key_bytes: &'a [u8]) -> Result<Self, &'static str> {
+        match key_bytes.len() {
+            16 => Ok(Key::Bits128(key_bytes.try_into().expect("Slice should be 16 bytes"))),
+            24 => Ok(Key::Bits192(key_bytes.try_into().expect("Slice should be 24 bytes"))),
+            32 => Ok(Key::Bits256(key_bytes.try_into().expect("Slice should be 32 bytes"))),
+            _ => Err("Invalid key length. Expected 16, 24, or 32 bytes."),
+        }
+    }
 }
 
 impl Into<KeySize> for &Key<'_> {
@@ -59,7 +69,7 @@ impl Into<KeySize> for &Key<'_> {
 
 /// AES struct for handling encryption and decryption using the AES hardware module.
 pub struct AesBackend<const KEY_SIZE: usize> {
-    aes: crate::pac::Aes,
+    aes: crate::pac::Aes, // Shared mutable access
 }
 
 /// AES-128 Implementation
@@ -90,13 +100,12 @@ where
         reg: &mut crate::gcr::GcrRegisters,
         key: cipher::Key<Self>, // GenericArray<u8, Self::KeySize>
     ) -> Self {
-        let mut instance = Self::new_backend(aes, reg);
+        let instance = Self::new_backend(aes, reg);
 
-        // Convert the GenericArray to a slice and take the first 16 bytes.
-        let key_bytes: [u8; 16] = key.as_slice()[..16]
-            .try_into()
-            .expect("Slice with 16 bytes");
-        instance.set_key(&Key::Bits128(&key_bytes));
+        instance.set_key(
+            &Key::from_bytes(
+                &key.as_slice()
+            ).expect("Invalid key"));
 
         instance
     }
@@ -125,7 +134,7 @@ impl<const KEY_SIZE: usize> AesBackend<KEY_SIZE> {
     }
 
     /// Configures the AES hardware with the provided key.
-    fn set_key(&mut self, key: &Key) {
+    pub fn set_key(&self, key: &Key) {
         // Wait until the AES module is not busy.
         while self._is_busy() {}
 
