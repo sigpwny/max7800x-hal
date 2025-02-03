@@ -2,7 +2,7 @@
 //!
 //! This module provides a full [typestate](https://docs.rust-embedded.org/book/static-guarantees/typestate-programming.html)
 //! API for enabling oscillators, configuring the system clock, and calculating
-//! clock frequencies. By using typestates, calculation of clock frequencies 
+//! clock frequencies. By using typestates, calculation of clock frequencies
 //! are done entirely at compile time, with no runtime or memory overhead.
 
 use core::marker::PhantomData;
@@ -137,7 +137,6 @@ impl SystemClockDivider for Div128 {
     const DIVISOR: u32 = 128;
 }
 
-
 /// Oscillators represent the state of a physical oscillator. To use an
 /// oscillator, it must be enabled. Then, it can be converted into a clock.
 pub struct Oscillator<O: OscillatorSource, S: OscillatorState> {
@@ -151,7 +150,10 @@ pub struct Clock<SRC: ClockOption> {
     _src: PhantomData<SRC>,
     pub frequency: u32,
 }
-impl<SRC> Clone for Clock<SRC> where SRC: ClockOption {
+impl<SRC> Clone for Clock<SRC>
+where
+    SRC: ClockOption,
+{
     fn clone(&self) -> Self {
         *self
     }
@@ -164,7 +166,10 @@ pub struct OscillatorGuard<O: OscillatorSource> {
     _source: PhantomData<O>,
 }
 
-impl<O> OscillatorGuard<O> where O: OscillatorSource {
+impl<O> OscillatorGuard<O>
+where
+    O: OscillatorSource,
+{
     pub(super) fn new() -> Self {
         Self {
             _source: PhantomData,
@@ -193,7 +198,10 @@ impl OscillatorGuards {
 
 /// Initialization of an [`Oscillator`] requires consumption of a
 /// corresponding typed OscillatorGuard.
-impl<O> Oscillator<O, Disabled> where O: OscillatorSource {
+impl<O> Oscillator<O, Disabled>
+where
+    O: OscillatorSource,
+{
     pub fn new(_guard: OscillatorGuard<O>) -> Self {
         Self {
             _source: PhantomData,
@@ -204,9 +212,10 @@ impl<O> Oscillator<O, Disabled> where O: OscillatorSource {
 
 pub type Ipo = Oscillator<InternalPrimaryOscillator, Disabled>;
 impl Ipo {
-    pub fn enable(&self, reg: &mut super::GcrRegisters) ->
-    Oscillator<InternalPrimaryOscillator, Enabled>
-    {
+    pub fn enable(
+        &self,
+        reg: &mut super::GcrRegisters,
+    ) -> Oscillator<InternalPrimaryOscillator, Enabled> {
         reg.gcr.clkctrl().modify(|_, w| w.ipo_en().set_bit());
         while reg.gcr.clkctrl().read().ipo_rdy().bit_is_clear() {}
         Oscillator {
@@ -216,9 +225,7 @@ impl Ipo {
     }
 }
 impl Oscillator<InternalPrimaryOscillator, Enabled> {
-    pub const fn into_clock(self) ->
-    Clock<InternalPrimaryOscillator>
-    {
+    pub const fn into_clock(self) -> Clock<InternalPrimaryOscillator> {
         Clock::<InternalPrimaryOscillator> {
             _src: PhantomData,
             frequency: InternalPrimaryOscillator::BASE_FREQUENCY,
@@ -228,9 +235,10 @@ impl Oscillator<InternalPrimaryOscillator, Enabled> {
 
 pub type Iso = Oscillator<InternalSecondaryOscillator, Disabled>;
 impl Iso {
-    pub fn enable(self, reg: &mut super::GcrRegisters) ->
-    Oscillator<InternalSecondaryOscillator, Enabled>
-    {
+    pub fn enable(
+        self,
+        reg: &mut super::GcrRegisters,
+    ) -> Oscillator<InternalSecondaryOscillator, Enabled> {
         reg.gcr.clkctrl().modify(|_, w| w.iso_en().set_bit());
         while reg.gcr.clkctrl().read().iso_rdy().bit_is_clear() {}
         Oscillator {
@@ -262,9 +270,10 @@ impl Oscillator<InternalSecondaryOscillator, Enabled> {
 
 pub type Ibro = Oscillator<InternalBaudRateOscillator, Disabled>;
 impl Ibro {
-    pub fn enable(self, reg: &mut super::GcrRegisters) ->
-    Oscillator<InternalBaudRateOscillator, Enabled>
-    {
+    pub fn enable(
+        self,
+        reg: &mut super::GcrRegisters,
+    ) -> Oscillator<InternalBaudRateOscillator, Enabled> {
         // IBRO is always enabled
         while reg.gcr.clkctrl().read().ibro_rdy().bit_is_clear() {}
         Oscillator {
@@ -284,9 +293,10 @@ impl Oscillator<InternalBaudRateOscillator, Enabled> {
 
 pub type Ertco = Oscillator<ExternalRtcOscillator, Disabled>;
 impl Oscillator<ExternalRtcOscillator, Disabled> {
-    pub fn enable(self, reg: &mut super::GcrRegisters) ->
-    Oscillator<ExternalRtcOscillator, Enabled>
-    {
+    pub fn enable(
+        self,
+        reg: &mut super::GcrRegisters,
+    ) -> Oscillator<ExternalRtcOscillator, Enabled> {
         reg.gcr.clkctrl().modify(|_, w| w.ertco_en().set_bit());
         while reg.gcr.clkctrl().read().ertco_rdy().bit_is_clear() {}
         todo!("ERTCO requires initialization of the RTC peripheral");
@@ -298,10 +308,7 @@ impl Oscillator<ExternalRtcOscillator, Disabled> {
 }
 
 /// System clock setup configuration (source and divider).
-pub struct SystemClockConfig<
-    S: OscillatorSource,
-    D: SystemClockDivider,
-> {
+pub struct SystemClockConfig<S: OscillatorSource, D: SystemClockDivider> {
     _source: PhantomData<S>,
     _divider: PhantomData<D>,
 }

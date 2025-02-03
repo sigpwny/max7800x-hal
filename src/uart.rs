@@ -3,15 +3,11 @@ use core::marker::PhantomData;
 use core::ops::Deref;
 
 use crate::gcr::{
+    clocks::{Clock, InternalBaudRateOscillator, PeripheralClock},
     ClockForPeripheral,
-    clocks::{
-        Clock,
-        InternalBaudRateOscillator,
-        PeripheralClock,
-    }
 };
-use crate::gpio::{Pin, Af1};
-use embedded_hal_nb::{serial, nb};
+use crate::gpio::{Af1, Pin};
+use embedded_hal_nb::{nb, serial};
 use paste::paste;
 
 enum UartClockSource {
@@ -143,7 +139,7 @@ pub struct BuiltUartPeripheral<UART, RX, TX, CTS, RTS> {
     _rx_pin: RX,
     _tx_pin: TX,
     _cts_pin: CTS,
-    _rts_pin: RTS
+    _rts_pin: RTS,
 }
 
 // TODO
@@ -257,11 +253,14 @@ uart! {Uart2,
 /// # Clock Methods
 /// You must set the clock source for the UART peripheral after using a
 /// constructor and before building the peripheral.
-impl<UART, RX, TX, CTS, RTS> UartPeripheral<marker::NotBuilt, marker::NotClockSet, UART, RX, TX, CTS, RTS> {
+impl<UART, RX, TX, CTS, RTS>
+    UartPeripheral<marker::NotBuilt, marker::NotClockSet, UART, RX, TX, CTS, RTS>
+{
     /// Set the clock source for the UART peripheral to the PCLK.
-    pub fn clock_pclk(self, clock: &Clock<PeripheralClock>) ->
-    UartPeripheral<marker::NotBuilt, marker::ClockSet, UART, RX, TX, CTS, RTS>
-    {
+    pub fn clock_pclk(
+        self,
+        clock: &Clock<PeripheralClock>,
+    ) -> UartPeripheral<marker::NotBuilt, marker::ClockSet, UART, RX, TX, CTS, RTS> {
         UartPeripheral {
             _state: PhantomData,
             _clock: PhantomData,
@@ -280,9 +279,10 @@ impl<UART, RX, TX, CTS, RTS> UartPeripheral<marker::NotBuilt, marker::NotClockSe
     }
 
     /// Set the clock source for the UART peripheral to the IBRO.
-    pub fn clock_ibro(self, clock: &Clock<InternalBaudRateOscillator>) ->
-    UartPeripheral<marker::NotBuilt, marker::ClockSet, UART, RX, TX, CTS, RTS>
-    {
+    pub fn clock_ibro(
+        self,
+        clock: &Clock<InternalBaudRateOscillator>,
+    ) -> UartPeripheral<marker::NotBuilt, marker::ClockSet, UART, RX, TX, CTS, RTS> {
         UartPeripheral {
             _state: PhantomData,
             _clock: PhantomData,
@@ -307,10 +307,10 @@ impl<UART, RX, TX, CTS, RTS> UartPeripheral<marker::NotBuilt, marker::NotClockSe
 /// with the [`UartPeripheral::build()`] method called at the end.
 impl<CLOCK, UART, RX, TX, CTS, RTS> UartPeripheral<marker::NotBuilt, CLOCK, UART, RX, TX, CTS, RTS>
 where
-    UART: Deref<Target = UartRegisterBlock>
+    UART: Deref<Target = UartRegisterBlock>,
 {
     /// Set the baud rate (bits per second) for the UART peripheral.
-    /// 
+    ///
     /// Default: `115200`
     pub fn baud(mut self, baud: u32) -> Self {
         self.baud = baud;
@@ -318,7 +318,7 @@ where
     }
 
     /// Set the number of data bits for the UART peripheral.
-    /// 
+    ///
     /// Default: [`DataBits::Eight`]
     pub fn data_bits(mut self, data_bits: DataBits) -> Self {
         self.data_bits = data_bits;
@@ -326,7 +326,7 @@ where
     }
 
     /// Set the number of stop bits for the UART peripheral.
-    /// 
+    ///
     /// Default: [`StopBits::One`]
     pub fn stop_bits(mut self, stop_bits: StopBits) -> Self {
         self.stop_bits = stop_bits;
@@ -334,7 +334,7 @@ where
     }
 
     /// Set the parity for the UART peripheral.
-    /// 
+    ///
     /// Default: [`ParityBit::None`]
     pub fn parity(mut self, parity: ParityBit) -> Self {
         self.parity = parity;
@@ -368,8 +368,10 @@ where
     // }
 }
 
-impl<UART, RX, TX, CTS, RTS> UartPeripheral<marker::NotBuilt, marker::ClockSet, UART, RX, TX, CTS, RTS>
-where UART: Deref<Target = UartRegisterBlock>
+impl<UART, RX, TX, CTS, RTS>
+    UartPeripheral<marker::NotBuilt, marker::ClockSet, UART, RX, TX, CTS, RTS>
+where
+    UART: Deref<Target = UartRegisterBlock>,
 {
     /// Apply all settings and configure the UART peripheral.
     /// This must be called before the UART peripheral can be used.
@@ -405,7 +407,9 @@ where UART: Deref<Target = UartRegisterBlock>
         });
         // Set the baud rate
         let clkdiv = clk_src_freq / self.baud;
-        self.uart.clkdiv().write(|w| unsafe { w.clkdiv().bits(clkdiv) });
+        self.uart
+            .clkdiv()
+            .write(|w| unsafe { w.clkdiv().bits(clkdiv) });
         // Wait until baud clock is ready
         while self.uart.ctrl().read().bclkrdy().bit_is_clear() {}
         BuiltUartPeripheral {
@@ -413,7 +417,7 @@ where UART: Deref<Target = UartRegisterBlock>
             _rx_pin: self._rx_pin,
             _tx_pin: self._tx_pin,
             _cts_pin: self._cts_pin,
-            _rts_pin: self._rts_pin
+            _rts_pin: self._rts_pin,
         }
     }
 }
@@ -423,7 +427,7 @@ where UART: Deref<Target = UartRegisterBlock>
 /// been built.
 impl<UART, RX, TX, CTS, RTS> BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
 where
-    UART: Deref<Target = UartRegisterBlock>
+    UART: Deref<Target = UartRegisterBlock>,
 {
     #[doc(hidden)]
     #[inline(always)]
@@ -500,14 +504,14 @@ where
 // Embedded HAL non-blocking serial traits
 impl<UART, RX, TX, CTS, RTS> serial::ErrorType for BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
 where
-    UART: Deref<Target = UartRegisterBlock>
+    UART: Deref<Target = UartRegisterBlock>,
 {
     type Error = serial::ErrorKind;
 }
 
 impl<UART, RX, TX, CTS, RTS> serial::Read<u8> for BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
 where
-    UART: Deref<Target = UartRegisterBlock>
+    UART: Deref<Target = UartRegisterBlock>,
 {
     fn read(&mut self) -> nb::Result<u8, Self::Error> {
         self._read_byte()
@@ -516,7 +520,7 @@ where
 
 impl<UART, RX, TX, CTS, RTS> serial::Write<u8> for BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
 where
-    UART: Deref<Target = UartRegisterBlock>
+    UART: Deref<Target = UartRegisterBlock>,
 {
     fn write(&mut self, byte: u8) -> nb::Result<(), Self::Error> {
         self._write_byte(byte)
@@ -531,14 +535,14 @@ where
 // Embedded IO traits
 impl<UART, RX, TX, CTS, RTS> embedded_io::ErrorType for BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
 where
-    UART: Deref<Target = UartRegisterBlock>
+    UART: Deref<Target = UartRegisterBlock>,
 {
     type Error = core::convert::Infallible;
 }
 
 impl<UART, RX, TX, CTS, RTS> embedded_io::Read for BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
 where
-    UART: Deref<Target = UartRegisterBlock>
+    UART: Deref<Target = UartRegisterBlock>,
 {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         let mut count = 0;
@@ -565,7 +569,7 @@ where
 
 impl<UART, RX, TX, CTS, RTS> embedded_io::ReadReady for BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
 where
-    UART: Deref<Target = UartRegisterBlock>
+    UART: Deref<Target = UartRegisterBlock>,
 {
     fn read_ready(&mut self) -> Result<bool, Self::Error> {
         Ok(!self._is_rx_empty())
@@ -574,7 +578,7 @@ where
 
 impl<UART, RX, TX, CTS, RTS> embedded_io::Write for BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
 where
-    UART: Deref<Target = UartRegisterBlock>
+    UART: Deref<Target = UartRegisterBlock>,
 {
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         for byte in buf {
@@ -591,7 +595,7 @@ where
 
 impl<UART, RX, TX, CTS, RTS> embedded_io::WriteReady for BuiltUartPeripheral<UART, RX, TX, CTS, RTS>
 where
-    UART: Deref<Target = UartRegisterBlock>
+    UART: Deref<Target = UartRegisterBlock>,
 {
     fn write_ready(&mut self) -> Result<bool, Self::Error> {
         Ok(!self._is_tx_full())

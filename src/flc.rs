@@ -2,15 +2,15 @@
 use crate::gcr::clocks::{Clock, SystemClock};
 
 /// Base address of the flash memory.
-pub const FLASH_BASE:       u32 = 0x1000_0000;
+pub const FLASH_BASE: u32 = 0x1000_0000;
 /// Size of the flash memory.
-pub const FLASH_SIZE:       u32 = 0x0008_0000;
+pub const FLASH_SIZE: u32 = 0x0008_0000;
 /// End address of the flash memory.
-pub const FLASH_END:        u32 = FLASH_BASE + FLASH_SIZE;
+pub const FLASH_END: u32 = FLASH_BASE + FLASH_SIZE;
 /// Number of flash pages.
 pub const FLASH_PAGE_COUNT: u32 = 64;
 /// Size of a flash page.
-pub const FLASH_PAGE_SIZE:  u32 = 0x2000;
+pub const FLASH_PAGE_SIZE: u32 = 0x2000;
 
 /// Flash controller errors.
 #[derive(Debug, PartialEq)]
@@ -72,9 +72,9 @@ impl Flc {
         while self.is_busy() {}
         // Set FLC divisor
         let flc_div = self.sys_clk.frequency / 1_000_000;
-        self.flc.clkdiv().modify(|_, w| unsafe {
-            w.clkdiv().bits(flc_div as u8)
-        });
+        self.flc
+            .clkdiv()
+            .modify(|_, w| unsafe { w.clkdiv().bits(flc_div as u8) });
         // Clear stale interrupts
         if self.flc.intr().read().af().bit_is_set() {
             self.flc.intr().write(|w| w.af().clear_bit());
@@ -85,10 +85,10 @@ impl Flc {
     #[inline]
     pub fn is_busy(&self) -> bool {
         let ctrl = self.flc.ctrl().read();
-        ctrl.pend().is_busy() ||
-        ctrl.pge().bit_is_set() ||
-        ctrl.me().bit_is_set() ||
-        ctrl.wr().bit_is_set()
+        ctrl.pend().is_busy()
+            || ctrl.pge().bit_is_set()
+            || ctrl.me().bit_is_set()
+            || ctrl.wr().bit_is_set()
     }
 
     /// Check if an address is within the valid flash memory range.
@@ -119,9 +119,9 @@ impl Flc {
         // Convert to physical address
         let phys_addr = address & (FLASH_SIZE - 1);
         // Safety: We have validated the address already
-        self.flc.addr().write(|w| unsafe {
-            w.addr().bits(phys_addr)
-        });
+        self.flc
+            .addr()
+            .write(|w| unsafe { w.addr().bits(phys_addr) });
         Ok(())
     }
 
@@ -306,9 +306,7 @@ impl Flc {
         self.check_address(address)?;
         let addr_32_ptr = address as *const u32;
         // Safety: We have checked the address already
-        unsafe {
-            Ok(core::ptr::read_volatile(addr_32_ptr))
-        }
+        unsafe { Ok(core::ptr::read_volatile(addr_32_ptr)) }
     }
 
     /// Erases a page in flash memory.
@@ -327,15 +325,15 @@ impl Flc {
         // Lock based on page number
         if page_num < 32 {
             let write_lock_bit = 1 << page_num;
-            self.flc.welr0().write(|w| unsafe {
-                w.bits(write_lock_bit)
-            });
+            self.flc
+                .welr0()
+                .write(|w| unsafe { w.bits(write_lock_bit) });
             while self.flc.welr0().read().bits() & write_lock_bit == write_lock_bit {}
         } else {
             let write_lock_bit = 1 << (page_num - 32);
-            self.flc.welr1().write(|w| unsafe {
-                w.bits(write_lock_bit)
-            });
+            self.flc
+                .welr1()
+                .write(|w| unsafe { w.bits(write_lock_bit) });
             while self.flc.welr1().read().bits() & write_lock_bit == write_lock_bit {}
         }
         Ok(())
@@ -349,15 +347,11 @@ impl Flc {
         // Lock based on page number
         if page_num < 32 {
             let read_lock_bit = 1 << page_num;
-            self.flc.rlr0().write(|w| unsafe {
-                w.bits(read_lock_bit)
-            });
+            self.flc.rlr0().write(|w| unsafe { w.bits(read_lock_bit) });
             while self.flc.rlr0().read().bits() & read_lock_bit == read_lock_bit {}
         } else {
             let read_lock_bit = 1 << (page_num - 32);
-            self.flc.rlr1().write(|w| unsafe {
-                w.bits(read_lock_bit)
-            });
+            self.flc.rlr1().write(|w| unsafe { w.bits(read_lock_bit) });
             while self.flc.rlr1().read().bits() & read_lock_bit == read_lock_bit {}
         }
         Ok(())
