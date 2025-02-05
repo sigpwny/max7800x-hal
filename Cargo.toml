@@ -21,12 +21,11 @@ embedded-hal-nb = "1.0.0"
 embedded-io = "0.6.1"
 max78000-pac = "0.3.0"
 paste = "1.0.15"
-rand = { version = "0.8.5", default-features = false, optional = true }
-rand_core = { version = "0.6.4", default-features = false, optional = true }
+rand_core = { version = "0.9.0", default-features = false, optional = true }
 
 [features]
 default = ["rand", "rt"]
 # Enabling this adds the `.flashprog` section header to critical flash programming functions for custom linkage
 flashprog-linkage = []
-rand = ["dep:rand", "dep:rand_core"]
+rand = ["dep:rand_core"]
 rt = ["max78000-pac/critical-section", "max78000-pac/rt"]
