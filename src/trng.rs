@@ -2,6 +2,7 @@
 //!
 //! The TRNG is a hardware module that generates random numbers using
 //! physical entropy sources.
+#[cfg(feature = "rand")]
 use rand_core::CryptoRng;
 #[cfg(feature = "rand")]
 use rand_core::RngCore;
