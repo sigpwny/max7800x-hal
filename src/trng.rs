@@ -62,7 +62,6 @@ impl Trng {
 /// let mut buffer = [0u8; 16];
 /// trng.fill_bytes(&mut buffer);
 /// ```
-#[doc(cfg(feature = "rand"))]
 #[cfg(feature = "rand")]
 impl RngCore for Trng {
     #[inline(always)]

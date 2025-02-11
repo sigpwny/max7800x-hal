@@ -1,6 +1,5 @@
 //! # Hardware Abstraction Layer for MAX7800x Microcontrollers
 #![no_std]
-#![feature(doc_cfg)]
 
 /// Entry point for the runtime application.
 pub use cortex_m_rt::entry;
