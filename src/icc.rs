@@ -1,10 +1,6 @@
-//! # Instruction Cache Controller
+//! # Instruction Cache Controller (ICC)
 
-pub struct Icc {
-    icc: crate::pac::Icc0,
-}
-
-/// Instruction Cache Controller (ICC)
+/// # Instruction Cache Controller (ICC)
 ///
 /// Example:
 /// ```
@@ -12,7 +8,12 @@ pub struct Icc {
 /// icc.enable();
 /// icc.disable();
 /// ```
+pub struct Icc {
+    icc: crate::pac::Icc0,
+}
+
 impl Icc {
+    /// Create a new ICC peripheral instance.
     pub fn new(icc: crate::pac::Icc0) -> Self {
         Self { icc }
     }
