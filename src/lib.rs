@@ -12,6 +12,7 @@ mod private {
 }
 use private::Sealed;
 
+pub mod aes;
 pub mod flc;
 pub mod gcr;
 pub mod gpio;
