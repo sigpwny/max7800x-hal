@@ -1,11 +1,11 @@
 //! # Hardware Abstraction Layer for MAX7800x Microcontrollers
 #![no_std]
 
+/// Entry point for the runtime application.
+pub use cortex_m_rt::entry;
 /// Re-export of the Peripheral Access Crate (PAC) for the MAX78000.
 pub use max78000_pac as pac;
 pub use pac::Interrupt;
-/// Entry point for the runtime application.
-pub use cortex_m_rt::entry;
 
 mod private {
     pub trait Sealed {}

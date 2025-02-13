@@ -1,7 +1,7 @@
 //! # Instruction Cache Controller
 
 pub struct Icc {
-    icc: crate::pac::Icc0
+    icc: crate::pac::Icc0,
 }
 
 /// Instruction Cache Controller (ICC)
@@ -24,7 +24,9 @@ impl Icc {
 
     #[inline(always)]
     fn _invalidate(&self) {
-        self.icc.invalidate().write(|w| unsafe { w.invalid().bits(1) });
+        self.icc
+            .invalidate()
+            .write(|w| unsafe { w.invalid().bits(1) });
     }
 
     /// Disable the instruction cache controller.
