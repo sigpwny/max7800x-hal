@@ -9,8 +9,8 @@ pub mod clocks;
 
 /// Wrapper struct to constrain the GCR.
 pub struct GcrRegisters {
-    pub(crate) gcr: crate::pac::Gcr,
-    pub(crate) lpgcr: crate::pac::Lpgcr,
+    pub gcr: crate::pac::Gcr,
+    pub lpgcr: crate::pac::Lpgcr,
 }
 
 /// Global Control Registers (GCR) Peripheral
