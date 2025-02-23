@@ -272,14 +272,16 @@ impl<const P: u8, const N: u8> Pin<P, N, InputOutput> {
     #[inline(always)]
     pub fn set_power_vddio(&mut self) {
         let gpio = unsafe { &*gpiox_ptr::<P>() };
-        gpio.vssel().modify(|r, w| unsafe { w.bits(r.bits() & !(1 << N)) });
+        gpio.vssel()
+            .modify(|r, w| unsafe { w.bits(r.bits() & !(1 << N)) });
     }
 
     /// Sets the pin power supply to VDDIOH.
     #[inline(always)]
     pub fn set_power_vddioh(&mut self) {
         let gpio = unsafe { &*gpiox_ptr::<P>() };
-        gpio.vssel().modify(|r, w| unsafe { w.bits(r.bits() | (1 << N)) });
+        gpio.vssel()
+            .modify(|r, w| unsafe { w.bits(r.bits() | (1 << N)) });
     }
 }
 
@@ -419,10 +421,18 @@ macro_rules! gpio {
     };
 }
 
-gpio!(Gpio0, gpio0, gcr, 0, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]);
+gpio!(
+    Gpio0,
+    gpio0,
+    gcr,
+    0,
+    [
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+        25, 26, 27, 28, 29, 30
+    ]
+);
 gpio!(Gpio1, gpio1, gcr, 1, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 gpio!(Gpio2, gpio2, lpgcr, 2, [0, 1, 2, 3, 4, 5, 6, 7]);
-
 
 /// Zero runtime cost function to get the address of a GPIO peripheral.
 #[inline(always)]

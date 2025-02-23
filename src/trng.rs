@@ -26,7 +26,9 @@ impl Trng {
     /// Create a new TRNG peripheral instance.
     pub fn new(trng: crate::pac::Trng, reg: &mut crate::gcr::GcrRegisters) -> Self {
         use crate::gcr::ClockForPeripheral;
-        unsafe { trng.enable_clock(&mut reg.gcr); }
+        unsafe {
+            trng.enable_clock(&mut reg.gcr);
+        }
         Self { trng }
     }
 
