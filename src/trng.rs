@@ -2,9 +2,10 @@
 //!
 //! The TRNG is a hardware module that generates random numbers using
 //! physical entropy sources.
-use rand::Error;
 #[cfg(feature = "rand")]
-use rand::RngCore;
+use rand_core::CryptoRng;
+#[cfg(feature = "rand")]
+use rand_core::RngCore;
 #[cfg(feature = "rand")]
 use rand_core::impls::{fill_bytes_via_next, next_u64_via_u32};
 
@@ -78,10 +79,7 @@ impl RngCore for Trng {
     fn fill_bytes(&mut self, dest: &mut [u8]) {
         fill_bytes_via_next(self, dest);
     }
-
-    #[inline(always)]
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Error> {
-        self.fill_bytes(dest);
-        Ok(())
-    }
 }
+
+#[cfg(feature = "rand")]
+impl CryptoRng for Trng {}
