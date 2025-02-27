@@ -1,6 +1,6 @@
 [package]
 name = "max7800x-hal"
-version = "0.7.0"
+version = "0.7.1"
 authors = ["SIGPwny <hello@sigpwny.com>", "Minh Duong <hello@whitehoodhacker.net>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
