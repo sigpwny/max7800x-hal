@@ -17,6 +17,8 @@ pub const FLASH_PAGE_SIZE: u32 = 0x2000;
 pub enum FlashError {
     /// The target address to write or erase is invalid.
     InvalidAddress,
+    /// The page number is invalid
+    InvalidPage,
     /// The flash controller was busy or locked when attempting to write or erase.
     AccessViolation,
     /// Writing over the old data with new data would cause 0 -> 1 bit transitions.
@@ -100,6 +102,25 @@ impl Flc {
         Ok(())
     }
 
+    /// Check if an address is within the valid flash memory range.
+    #[inline]
+    pub fn check_page_number(&self, page_number: u32) -> Result<(), FlashError> {
+        if page_number >= FLASH_PAGE_COUNT {
+            return Err(FlashError::InvalidPage);
+        }
+        Ok(())
+    }
+
+    /// Get the base address of a page
+    #[inline]
+    pub fn get_address(&self, page_number: u32) -> Result<u32, FlashError> {
+        self.check_page_number(page_number)?;
+
+        let address = FLASH_BASE + FLASH_PAGE_SIZE * page_number;
+
+        Ok(address)
+    }
+    
     /// Get the page number of a flash address.
     #[inline]
     pub fn get_page_number(&self, address: u32) -> Result<u32, FlashError> {
