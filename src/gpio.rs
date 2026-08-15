@@ -421,6 +421,7 @@ macro_rules! gpio {
     };
 }
 
+#[cfg(feature = "max78000")]
 gpio!(
     Gpio0,
     gpio0,
@@ -431,7 +432,29 @@ gpio!(
         25, 26, 27, 28, 29, 30
     ]
 );
+#[cfg(feature = "max78000")]
 gpio!(Gpio1, gpio1, gcr, 1, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+#[cfg(feature = "max78002")]
+gpio!(
+    Gpio0,
+    gpio0,
+    gcr,
+    0,
+    [
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+        25, 26, 27, 28, 29, 30, 31
+    ]
+);
+#[cfg(feature = "max78002")]
+gpio!(
+    Gpio1,
+    gpio1,
+    gcr,
+    1,
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+);
+
 gpio!(Gpio2, gpio2, lpgcr, 2, [0, 1, 2, 3, 4, 5, 6, 7]);
 
 /// Zero runtime cost function to get the address of a GPIO peripheral.

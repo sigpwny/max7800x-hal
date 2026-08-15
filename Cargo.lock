@@ -100,6 +100,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "max78002-pac"
+version = "0.1.0"
+source = "git+https://github.com/vinayak-vikram/max78002-pac.git?branch=main#5edb0226321e2f7a9a17858aa05ce5331e274541"
+dependencies = [
+ "cortex-m",
+ "cortex-m-rt",
+ "critical-section",
+ "vcell",
+]
+
+[[package]]
 name = "max7800x-hal"
 version = "0.7.1"
 dependencies = [
@@ -109,6 +120,7 @@ dependencies = [
  "embedded-hal-nb",
  "embedded-io",
  "max78000-pac",
+ "max78002-pac",
  "paste",
  "rand_core",
 ]

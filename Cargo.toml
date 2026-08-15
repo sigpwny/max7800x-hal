@@ -19,13 +19,22 @@ cortex-m-rt = "0.7.3"
 embedded-hal = "1.0.0"
 embedded-hal-nb = "1.0.0"
 embedded-io = "0.6.1"
-max78000-pac = "0.5.0"
+max78000-pac = { version = "0.5.0", optional = true }
+max78002-pac = { git = "https://github.com/vinayak-vikram/max78002-pac.git", branch = "main", default-features = false, optional = true }
 paste = "1.0.15"
 rand_core = { version = "0.9.0", default-features = false, optional = true }
 
 [features]
-default = ["rand", "rt"]
+default = ["max78000", "rand", "rt"]
+# Exactly one target microcontroller must be selected.
+max78000 = ["dep:max78000-pac"]
+max78002 = ["dep:max78002-pac"]
 # Enabling this adds the `.flashprog` section header to critical flash programming functions for custom linkage
 flashprog-linkage = []
 rand = ["dep:rand_core"]
-rt = ["max78000-pac/critical-section", "max78000-pac/rt"]
+rt = [
+    "max78000-pac?/critical-section",
+    "max78000-pac?/rt",
+    "max78002-pac?/critical-section",
+    "max78002-pac?/rt",
+]

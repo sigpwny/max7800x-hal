@@ -4,13 +4,21 @@ use crate::gcr::clocks::{Clock, SystemClock};
 /// Base address of the flash memory.
 pub const FLASH_BASE: u32 = 0x1000_0000;
 /// Size of the flash memory.
+#[cfg(feature = "max78000")]
 pub const FLASH_SIZE: u32 = 0x0008_0000;
+#[cfg(feature = "max78002")]
+pub const FLASH_SIZE: u32 = 0x0028_0000;
 /// End address of the flash memory.
 pub const FLASH_END: u32 = FLASH_BASE + FLASH_SIZE;
-/// Number of flash pages.
-pub const FLASH_PAGE_COUNT: u32 = 64;
 /// Size of a flash page.
+#[cfg(feature = "max78000")]
 pub const FLASH_PAGE_SIZE: u32 = 0x2000;
+#[cfg(feature = "max78002")]
+pub const FLASH_PAGE_SIZE: u32 = 0x4000;
+/// Number of flash pages.
+pub const FLASH_PAGE_COUNT: u32 = FLASH_SIZE / FLASH_PAGE_SIZE;
+/// Log2 of the flash page size.
+pub const FLASH_PAGE_SHIFT: u32 = FLASH_PAGE_SIZE.trailing_zeros();
 
 /// Flash controller errors.
 #[derive(Debug, PartialEq)]
@@ -123,7 +131,7 @@ impl Flc {
     #[inline]
     pub fn get_page_number(&self, address: u32) -> Result<u32, FlashError> {
         self.check_address(address)?;
-        let page_num = (address >> 13) & (FLASH_PAGE_COUNT - 1);
+        let page_num = (address - FLASH_BASE) >> FLASH_PAGE_SHIFT;
         // Check for invalid page number (redundant check)
         if page_num >= FLASH_PAGE_COUNT {
             return Err(FlashError::InvalidAddress);
@@ -136,7 +144,7 @@ impl Flc {
     fn set_address(&self, address: u32) -> Result<(), FlashError> {
         self.check_address(address)?;
         // Convert to physical address
-        let phys_addr = address & (FLASH_SIZE - 1);
+        let phys_addr = address - FLASH_BASE;
         // Safety: We have validated the address already
         self.flc
             .addr()

@@ -41,7 +41,10 @@ impl crate::Sealed for ExternalRtcOscillator {}
 
 impl OscillatorSource for InternalPrimaryOscillator {
     const SOURCE: OscillatorSourceEnum = OscillatorSourceEnum::Ipo;
+    #[cfg(feature = "max78000")]
     const BASE_FREQUENCY: u32 = 100_000_000; // 100 MHz
+    #[cfg(feature = "max78002")]
+    const BASE_FREQUENCY: u32 = 120_000_000; // 120 MHz
 }
 impl OscillatorSource for InternalSecondaryOscillator {
     const SOURCE: OscillatorSourceEnum = OscillatorSourceEnum::Iso;

@@ -2,12 +2,25 @@
 [![Crates.io Version](https://img.shields.io/crates/v/max7800x-hal)](https://crates.io/crates/max7800x-hal)
 [![docs.rs](https://img.shields.io/docsrs/max7800x-hal)](https://docs.rs/max7800x-hal)
 
-This is an [Embedded HAL] (Hardware Abstraction Layer) for the MAX78000 microcontroller from Analog Devices.
+This is an [Embedded HAL] (Hardware Abstraction Layer) for the MAX78000 and MAX78002 microcontrollers from Analog Devices.
 
-The HAL is built on top of the [`max78000-pac`] Peripheral Access Crate, which provides low-level access to the MAX78000's registers. The HAL provides a higher-level interface to the MAX78000's peripherals, making it easier to write applications.
+The HAL is built on top of a Peripheral Access Crate, which provides low-level access to the microcontroller's registers. The HAL provides a higher-level interface to the peripherals, making it easier to write applications.
 
 [Embedded HAL]: https://crates.io/crates/embedded-hal
 [`max78000-pac`]: https://github.com/sigpwny/max78000-pac
+[`max78002-pac`]: https://github.com/vinayak-vikram/max78002-pac
+
+## Target selection
+Exactly one target feature must be enabled. `max78000` is the default and pulls in [`max78000-pac`]; `max78002` pulls in [`max78002-pac`] instead.
+
+```toml
+max7800x-hal = { version = "0.7.1", default-features = false, features = ["max78002", "rand", "rt"] }
+```
+
+The target feature selects the PAC re-exported as `hal::pac` along with the
+chip-specific constants: IPO frequency (100 MHz vs 120 MHz), flash size and
+page size (512 KiB / 8 KiB vs 2.5 MiB / 16 KiB), and the pins available on
+each GPIO port.
 
 ## Roadmap
 See the [roadmap] to see current implementation progress and future plans.
